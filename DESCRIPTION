@@ -1,0 +1,33 @@
+Package: VariableSelection
+Title: Variable Selection Methods for Survival Data with Intergration
+Version: 1.0.0
+URL: 
+BugReports: 
+Authors@R: c(
+    person("Lingfeng","Luo",role=c("aut","cre"),email="lfluo@umich.edu"),
+    person("Di","Wang",role=c("aut"),email="yubos@umich.edu"),
+    person("Kevin","He",role=c("aut"),email="kevinhe@umich.edu")
+  )
+Description: 
+    For more information, see Wu et al. (2022) <doi: 10.1007/s10985-021-09544-2> and 
+    Luo et al. (2023) <doi:10.1177/09622802231181471>.
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+Imports:
+    Rcpp,
+    splines,
+    ggplot2,
+    ggpubr,
+    stats,
+    tibble,
+    rlang
+Depends:
+    R (>= 4.0)
+Suggests:
+    knitr,
+    rmarkdown
