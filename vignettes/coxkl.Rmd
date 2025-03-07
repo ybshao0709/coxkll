@@ -1,0 +1,189 @@
+---
+title: "coxkl"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{coxkl}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: sentence
+bibliography: references.bib
+---
+
+## Introduction:
+
+
+
+## Installation:
+
+
+## Quick Start
+
+## A simulated example
+
+In this section, we illustrate the usage on a simulated data set.
+
+First we load the simulated data set:
+
+```{r, message = FALSE}
+# Load simulated data
+data(simulatedData)
+
+# Extract components from simulatedData
+data_internal_list <- simulatedData$data_internal_list
+beta_external_homo <- simulatedData$beta_external1
+beta_external_heter <- simulatedData$beta_external2
+```
+
+Then we call the following functions to fit
+
+
+```{r, message = FALSE}
+# Define eta_list for analysis
+eta_list <- seq(0, 11, 0.1)
+
+# Initialize container for c-index results from all iterations
+c_index_test_all_homo <- list()
+c_index_test_all_heter <- list()
+
+# Number of repetitions
+num_repetitions <- 10
+
+# Main loop for processing each repetition
+for (i in seq_len(num_repetitions)) {
+  cat("Processing repetition:", i, "\n")
+  
+  # Extract training and testing data for current repetition
+  current_data <- data_internal_list[[1]]
+  data_train <- current_data$data
+  data_test <- current_data$data_test
+  
+  # Select relevant features and outcomes from training data
+  Z_internal <- data_train[, 1:6]
+  delta_internal <- data_train$status
+  time_internal <- data_train$time
+  
+  # Select relevant features and outcomes from testing data
+  Z_test <- data_test[, 1:6]
+  delta_test <- data_test$status
+  time_test <- data_test$time
+  
+  # Calculate predicted risk score using external beta
+  rs_external_homo <- as.matrix(Z_internal) %*% as.matrix(beta_external_homo)
+  rs_external_heter <- as.matrix(Z_internal) %*% as.matrix(beta_external_heter)
+  
+  # Apply our coxkl function:
+  coxkl_results_homo <- coxkl(z = Z_internal, delta = delta_internal, time = time_internal, RS = rs_external_homo, eta_list = eta_list)
+  coxkl_results_heter <- coxkl(z = Z_internal, delta = delta_internal, time = time_internal, RS = rs_external_heter, eta_list = eta_list)
+  
+  # Calculate c-index for each eta value
+  c_index_diffeta_homo <- numeric(length(eta_list))
+  c_index_diffeta_heter <- numeric(length(eta_list))
+  
+  for (eta_index in seq_along(eta_list)) {
+    LP_test_homo <- as.matrix(Z_test) %*% as.matrix(coxkl_results_homo$beta_list[[eta_index]])
+    LP_test_heter <- as.matrix(Z_test) %*% as.matrix(coxkl_results_heter$beta_list[[eta_index]])
+    
+    c_index_diffeta_homo[eta_index] <- glmnet::Cindex(LP_test_homo, Surv(time_test, delta_test))
+    c_index_diffeta_heter[eta_index] <- glmnet::Cindex(LP_test_heter, Surv(time_test, delta_test))
+  }
+  
+  c_index_test_all_homo[[i]] <- c_index_diffeta_homo
+  c_index_test_all_heter[[i]] <- c_index_diffeta_heter
+}
+
+c_index_test_all_homo <- do.call(rbind, c_index_test_all_homo)
+c_index_test_all_heter <- do.call(rbind, c_index_test_all_heter)
+```
+
+
+Now we can plot the C-index vs $\eta$ to see how the C-index varies with different $\eta$. For homogenous settings we can see that
+
+
+```{r, fig = TRUE}
+library(ggplot2)
+plot_data <- data.frame(eta = eta_list, 
+                         c_index_test_homo = colMeans(c_index_test_all_homo),
+                         c_index_test_heter = colMeans(c_index_test_all_heter))
+# Basic line plot with shaded area for c_index_test
+p1 <- ggplot(plot_data, aes(x = eta)) +
+  geom_line(aes(y = c_index_test_homo), color = "blue", size = 1) +  # Change size as needed
+  theme_minimal() + 
+  ggtitle("C-Index for Homogeneous Setting, Armadillo") +
+  labs(x = expression(eta), y = "C-Index") +
+  theme(
+    plot.title = element_text(size = 20),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    legend.text = element_text(size = 12),
+    axis.text.x = element_text(size = 14), # X-axis labels
+    axis.text.y = element_text(size = 14)
+  )
+
+print(p1)
+
+p2 <- ggplot(plot_data, aes(x = eta)) +
+  geom_line(aes(y = c_index_test_heter), color = "blue", size = 1) +
+  theme_minimal() + 
+  ggtitle("C-Index for Heterogeneous Setting, Armadillo") +
+  labs(x = expression(eta), y = "C-Index")+
+  theme(
+    plot.title = element_text(size = 20),
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 16),
+    legend.text = element_text(size = 15),
+    axis.text.x = element_text(size = 14), 
+    axis.text.y = element_text(size = 14)
+  ) 
+print(p2)
+```
+
+
+
+
+## Using Cross-Validation to Select $\eta$:
+```{r}
+nfolds = 5
+
+# Load simulated data
+data(simulatedData)
+
+# Extract components from simulatedData
+data_internal_list <- simulatedData$data_internal_list
+beta_external_homo <- simulatedData$beta_external1
+beta_external_heter <- simulatedData$beta_external2
+
+data_internal <- data_internal_list[[1]]$data
+z <- data_internal[,1:6]
+delta <- data_internal$status
+time <- data_internal$time
+
+beta_
+
+res <- cv.coxkl(z, delta, time, RS = NULL, beta=beta_external_homo, eta_list, tol=1.0e-7, Mstop = 50, nfolds = 5, criteria = "C-Index")
+
+
+```
+
+
+
+
+## Real Data Example `SUPPORT`
+ 
+In this section, we illustrate the usage of our package by analyzing the time-varying effects on the real data `SUPPORT` (Study to Understand Prognoses Preferences Outcomes and Risks of Treatment).
+We use the processed `SUPPORT` data set included in the R package [@casebase].
+
+We study the time-varying effects of metastatic cancer as the illustration example and include
+
+First we load the data and get the survival outcome:
+
+```{r, message = FALSE}
+data(support)
+
+time <- support$d.time
+death <- support$death
+```
+
+
+
