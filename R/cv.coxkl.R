@@ -24,7 +24,7 @@
 #' cross-validation.}
 #' 
 #' @examples
-#' data(simulatedData)
+#' data(ExampleData)
 #' cv_result <- cv.coxkl(z = z, delta = delta, time = time,
 #'                        RS = rs_external1, eta_list = eta_list,
 #'                        nfolds = 5, criteria = "C-Index")
@@ -60,7 +60,7 @@ cv.coxkl <- function(z, delta, time, RS, beta, eta_list, tol=1.0e-7, Mstop = 50,
     
     eta = eta_list[eta_index]
     likelihood_cv = rep(0, nfolds)
-    folds <- get_fold(5, delta_internal)
+    folds <- get_fold(5, delta)
     for(f in 1:nfolds){
       train_idx <- which(folds != f)
       test_idx <- which(folds == f)
@@ -75,18 +75,18 @@ cv.coxkl <- function(z, delta, time, RS, beta, eta_list, tol=1.0e-7, Mstop = 50,
       time_test <- time[test_idx]
       
       cox_estimate <- coxkl_sorted(z = Z_train, delta = delta_train, time = time_train, 
-                                  RS = RiskScore[train_idx], eta_list = eta_tmp, tol=tol, Mstop = Mstop)
+                                  RS = RS[train_idx], eta_list = eta, tol=tol, Mstop = Mstop)
       
       beta_train <- cox_estimate$beta_list[[1]]
       
-      if (criteria == "V&VH")
-      {
-        LP_train <- as.matrix(Z_train)%*%as.matrix(beta_train)
-        LP_internal <- as.matrix(z)%*%as.matrix(beta_train)
-        
-        likelihood_cv[cv] <- pl_cal_theta(LP_internal, delta_internal, t_internal) - pl_cal_theta(LP_train, delta_train, t_train)        
-      }
-      
+      # if (criteria == "V&VH")
+      # {
+      #   LP_train <- as.matrix(Z_train)%*%as.matrix(beta_train)
+      #   LP_internal <- as.matrix(z)%*%as.matrix(beta_train)
+      #   
+      #   likelihood_cv[cv] <- pl_cal_theta(LP_internal, delta, t_internal) - pl_cal_theta(LP_train, delta_train, t_train)        
+      # }
+      # 
       #C-Index
       if (criteria == "C-Index"){
         LP_test <- as.matrix(Z_test)%*%as.matrix(beta_train)
