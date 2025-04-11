@@ -30,7 +30,7 @@
 #'                        nfolds = 5, criteria = "C-Index")
 #'                        
 #' @export
-cv.coxkl <- function(z, delta, time, RS, beta, eta_list, tol=1.0e-7, Mstop = 50, nfolds = 5, criteria = "C-Index"){
+cv.coxkl <- function(z, delta, time, eta_list, RS = NULL, beta = NULL, tol=1.0e-7, Mstop = 50, nfolds = 5, criteria = "C-Index"){
   
   if(is.null(RS) && is.null(beta)) {
     stop("Error: No external information is provided. Either RS or beta must be provided.")
@@ -38,7 +38,7 @@ cv.coxkl <- function(z, delta, time, RS, beta, eta_list, tol=1.0e-7, Mstop = 50,
     # Check if the dimension of beta matches the number of columns in z
     if(length(beta) == ncol(z)) {
       print("External beta information is used.")
-      RS <- as.matrix(Z_internal) %*% as.matrix(beta_external_homo)
+      RS <- as.matrix(z) %*% as.matrix(beta)
     } else {
       stop("Error: The dimension of beta does not match the number of columns in z.")
     }
