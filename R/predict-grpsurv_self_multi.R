@@ -4,7 +4,7 @@ predict.grpsurv_self_multi <- function(object, X, K,
                                         lambda, which=1:length(object$lambda), ...) {
   type <- match.arg(type)
   m = K
-  print(dim(X))
+  # print(dim(X))
   n <- nrow(X)
   p <- ncol(X)
   # cat("m:", m, "n:", n, "p:", p, "\n")

@@ -65,7 +65,6 @@ KL_Cox_Estimate <- function(z, delta, time, RS_internal, eta, tol=1.0e-7){
 #'                  eta_list = seq(0, 5, 1))
 #'
 #' @export
-
 coxkl <- function(z, delta, time, RS = NULL, beta = NULL, eta_list, tol=1.0e-7, Mstop = 50){
   
   if(is.null(RS) && is.null(beta)) {

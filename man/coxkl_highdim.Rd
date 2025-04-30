@@ -8,11 +8,9 @@ coxkl_highdim(
   z,
   delta,
   time,
-  group,
-  K,
-  penalty = "lasso",
-  theta_tilde,
-  eta_kl = 0,
+  RS = NULL,
+  beta = NULL,
+  eta_list = 0,
   alpha = 1,
   nlambda = 100,
   lambda,
@@ -20,9 +18,6 @@ coxkl_highdim(
   eps = 0.001,
   max.iter = 1000,
   dfmax = p,
-  gmax = length(unique(group)),
-  tau = 1/3,
-  group.multiplier,
   warn = TRUE,
   returnX = FALSE,
   activeSet = FALSE,
@@ -39,23 +34,12 @@ represent variables.}
 
 \item{time}{A vector of survival/censoring times.}
 
-\item{group}{A vector indicating group membership for each covariate.  Used
-for group penalties (not implemented in this documentation, but present in
-the function signature).}
+\item{RS}{Numeric vector or matrix of precomputed external risk scores.
+Length (or number of rows) must match the number of observations.
+If not provided, \code{beta} must be specified.}
 
-\item{K}{The number of groups.}
-
-\item{penalty}{The type of penalty to apply.  Must be either "lasso" (for
-L1 regularization) or "ridge" (for L2 regularization).}
-
-\item{theta_tilde}{A vector representing the external risk score information.
-This is \emph{crucially} different from the \code{RS} parameter in the other \code{coxkl}
-functions. Here, \code{theta_tilde} is used directly in the KL divergence
-calculation, \emph{not} as a pre-calculated risk score.  It's likely related
-to coefficients from an external model.}
-
-\item{eta_kl}{A \emph{single} numeric value controlling the influence of the
-external risk score (\code{theta_tilde}). A higher \code{eta_kl} gives more weight
+\item{eta_list}{A \emph{single} numeric value controlling the influence of the
+external risk score (\code{RS}). A higher \code{eta_list} gives more weight
 to the external information. Default is 0.}
 
 \item{alpha}{The elastic net mixing parameter.  \code{alpha = 1} corresponds to
@@ -81,15 +65,6 @@ algorithm. Default is 1000.}
 
 \item{dfmax}{Maximum number of non-zero coefficients.}
 
-\item{gmax}{Maximum number of groups with non-zero coefficients (relevant
-for group penalties, but not fully described here).}
-
-\item{tau}{A parameter related to the penalty (specific meaning depends on
-the penalty type, but not fully described here). Default is 1/3.}
-
-\item{group.multiplier}{An optional vector of weights for each group, used
-to apply different penalties to different groups (not fully described here).}
-
 \item{warn}{Logical value indicating whether to print warnings. Default is
 TRUE.}
 
@@ -114,24 +89,23 @@ rows is equal to the number of covariates (number of columns in \code{z}).}
 \item{df}{The number of non-zero coefficients for each value of \code{lambda}.}
 \item{iter}{The number of iterations taken for each value of \code{lambda}.}
 \item{group}{The \code{group} vector provided as input.}
-\item{penalty}{The penalty used}
 \item{alpha}{The \code{alpha} provided as input.}
 \item{X}{If \code{returnX = TRUE}, the design matrix \code{z} is returned.}
 }
 \description{
 This function estimates the coefficients of a Cox proportional hazards model
 using Kullback-Leibler (KL) divergence for data integration in high-dimensional
-settings. It incorporates an external risk score (represented by \code{theta_tilde})
-and supports regularization via lasso or ridge penalties.  It is designed for
-situations where the number of covariates (p) can be larger than the number
+settings. It incorporates an external risk score and supports regularization via lasso or ridge penalties.
+It is designed for situations where the number of covariates (p) can be larger than the number
 of observations (n).
 }
 \examples{
-# Load example data (assuming the package is installed and loaded)
-data(simulatedData)
-result_lasso <- coxkl_highdim(z = z, delta = delta, time = time, group = group,
-                             K = K, penalty = "lasso", theta_tilde = theta_tilde,
-                             eta_kl = 1)
-                             
-                           
+data("ExampleDataHighDim")
+rs <- as.matrix(ExampleData$z) \%*\% as.matrix(ExampleData$beta_external) # this can be any risk score
+result2 <- coxkl_highdim(z = ExampleData$z, delta = ExampleData$status,
+                         time = ExampleData$time,
+                         RS = rs,
+                         group = c(1:dim(ExampleData$z)[2]), eta_list = c(1),
+                         cv.method = "LinPred")
+
 }

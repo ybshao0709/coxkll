@@ -8,9 +8,9 @@ cv.coxkl(
   z,
   delta,
   time,
-  RS,
-  beta,
   eta_list,
+  RS = NULL,
+  beta = NULL,
   tol = 1e-07,
   Mstop = 50,
   nfolds = 5,
@@ -24,9 +24,9 @@ cv.coxkl(
 
 \item{time}{A vector of event times corresponding to each observation.}
 
-\item{RS}{A vector or matrix of external risk scores corresponding to each observation, used for data integration.}
-
 \item{eta_list}{A vector of tuning parameters for data integration, allowing for adjustment in the influence of the external risk scores.}
+
+\item{RS}{A vector or matrix of external risk scores corresponding to each observation, used for data integration.}
 
 \item{tol}{The tolerance level for the convergence criterion of the optimization algorithm. Default is 1.0e-7.}
 
@@ -52,9 +52,17 @@ Kullback-Leibler divergence for data integration, allowing for the incorporation
 an external risk score (RS) and adjustment of the integration via a list of tuning parameters (eta).
 }
 \examples{
-data(simulatedData)
-cv_result <- cv.coxkl(z = z, delta = delta, time = time,
-                       RS = rs_external1, eta_list = eta_list,
-                       nfolds = 5, criteria = "C-Index")
+data(ExampleData)
+library(survival)
+# use external beta information
+result1 <- cv.coxkl(z = ExampleData$z, delta = ExampleData$status, 
+                    time = ExampleData$time, beta = ExampleData$beta_external,
+                    eta_list = seq(0, 5, 1))
+
+# use external risk score information
+rs <- as.matrix(ExampleData$z) \%*\% as.matrix(ExampleData$beta_external) # this can be any risk score
+result2 <- cv.coxkl(z = ExampleData$z, delta = ExampleData$status, 
+                    time = ExampleData$time, RS = rs,
+                    eta_list = seq(0, 5, 1))
                        
 }

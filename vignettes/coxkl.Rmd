@@ -1,189 +1,138 @@
 ---
-title: "coxkl"
+title: "coxkl: Cox Models with KL Divergence for Survival Data Integration"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{coxkl}
+  %\VignetteIndexEntry{coxkl Introduction}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
-editor_options: 
-  markdown: 
+editor_options:
+  markdown:
     wrap: sentence
-bibliography: references.bib
+# bibliography: references.bib
 ---
 
-## Introduction:
 
+
+## Introduction:
+Prognosis prediction is a crucial aspect of survival analysis. In recent years, the surge of biobank data encompassing diverse high-dimensional risk factors such as genetics, transcriptomics, and electronic health records has opened new avenues for advancing prognosis prediction. Despite this potential, risk prediction for biobank data faces challenges such as limited effective sample sizes, high dimensionality, low signal-to-noise ratios, and patient privacy concerns.
+
+Integrating external information is expected to enhance prediction performance. However, a key issue with classical integration approaches is the assumption of similar underlying distributions across multiple data sources, which often is not the case. Overlooking the heterogeneity among different information sources can introduce significant bias. Consequently, it is crucial to develop a transfer learning procedure that effectively measures the differences between these populations.
+
+Although Kullback-Leibler (KL) divergence has been proposed to integrate external predicted probabilities for binary outcomes, such approaches are not directly applicable to censored time-to-event data due to the complexities of censoring and the typical format of external survival information (e.g., risk scores or coefficients lacking baseline hazard).
+
+To address these issues, the coxkl R package provides a transfer learning-based framework for efficient survival data integration, leveraging external information alongside newly collected time-to-event data. This package offers several key features:
+
+Privacy-Preserving: Requires less sensitive summary statistics (like risk scores or coefficient estimates) from external sources, with no need for individual-level external data.
+Robust & Flexible: Handles potential heterogeneity between data sources and supports various formats of external information (coefficients, risk scores, potentially clinical risk groups - check if ranking is implemented).
+Adaptive Weighting: Uses tuning parameters (eta) to control the relative weight of external information, prioritizing compatible sources.
+High-Dimensionality Support: Implements regularized methods (Ridge, LASSO, Elastic Net via coxkl_highdim) to handle datasets where the number of predictors exceeds the number of observations.
+Partial Information Handling: Accommodates scenarios where external studies provide information on only a subset of predictors available in the internal study.
+This vignette provides an introduction to the coxkl package and demonstrates its core functionalities.
 
 
 ## Installation:
-
+You can install the development version of coxkl from GitHub using remotes:
 
 ## Quick Start
+This section provides a brief overview of the main functions using example data included with the package.
 
-## A simulated example
+First, load the coxkl package:
 
-In this section, we illustrate the usage on a simulated data set.
-
-First we load the simulated data set:
-
-```{r, message = FALSE}
-# Load simulated data
-data(simulatedData)
-
-# Extract components from simulatedData
-data_internal_list <- simulatedData$data_internal_list
-beta_external_homo <- simulatedData$beta_external1
-beta_external_heter <- simulatedData$beta_external2
+```{r, eval=FALSE}
+library(coxkl)
 ```
 
-Then we call the following functions to fit
+### Low-Dimensional Integration (coxkl)
+The coxkl function is designed for standard settings where the number of predictors is not substantially larger than the sample size. It integrates external information provided either as coefficient estimates (beta) or as pre-calculated risk scores (RS).
 
+Let's load some example data. Assume ExampleData contains covariates z, event status status, survival time time, and externally derived coefficients beta_external.
 
-```{r, message = FALSE}
-# Define eta_list for analysis
-eta_list <- seq(0, 11, 0.1)
+```{r, eval=FALSE}
+# Load example data (Ensure this data is available in your package)
+data("ExampleData")
+z <- ExampleData$z
+delta <- ExampleData$status
+time <- ExampleData$time
+beta_ext <- ExampleData$beta_external
 
-# Initialize container for c-index results from all iterations
-c_index_test_all_homo <- list()
-c_index_test_all_heter <- list()
-
-# Number of repetitions
-num_repetitions <- 10
-
-# Main loop for processing each repetition
-for (i in seq_len(num_repetitions)) {
-  cat("Processing repetition:", i, "\n")
-  
-  # Extract training and testing data for current repetition
-  current_data <- data_internal_list[[1]]
-  data_train <- current_data$data
-  data_test <- current_data$data_test
-  
-  # Select relevant features and outcomes from training data
-  Z_internal <- data_train[, 1:6]
-  delta_internal <- data_train$status
-  time_internal <- data_train$time
-  
-  # Select relevant features and outcomes from testing data
-  Z_test <- data_test[, 1:6]
-  delta_test <- data_test$status
-  time_test <- data_test$time
-  
-  # Calculate predicted risk score using external beta
-  rs_external_homo <- as.matrix(Z_internal) %*% as.matrix(beta_external_homo)
-  rs_external_heter <- as.matrix(Z_internal) %*% as.matrix(beta_external_heter)
-  
-  # Apply our coxkl function:
-  coxkl_results_homo <- coxkl(z = Z_internal, delta = delta_internal, time = time_internal, RS = rs_external_homo, eta_list = eta_list)
-  coxkl_results_heter <- coxkl(z = Z_internal, delta = delta_internal, time = time_internal, RS = rs_external_heter, eta_list = eta_list)
-  
-  # Calculate c-index for each eta value
-  c_index_diffeta_homo <- numeric(length(eta_list))
-  c_index_diffeta_heter <- numeric(length(eta_list))
-  
-  for (eta_index in seq_along(eta_list)) {
-    LP_test_homo <- as.matrix(Z_test) %*% as.matrix(coxkl_results_homo$beta_list[[eta_index]])
-    LP_test_heter <- as.matrix(Z_test) %*% as.matrix(coxkl_results_heter$beta_list[[eta_index]])
-    
-    c_index_diffeta_homo[eta_index] <- glmnet::Cindex(LP_test_homo, Surv(time_test, delta_test))
-    c_index_diffeta_heter[eta_index] <- glmnet::Cindex(LP_test_heter, Surv(time_test, delta_test))
-  }
-  
-  c_index_test_all_homo[[i]] <- c_index_diffeta_homo
-  c_index_test_all_heter[[i]] <- c_index_diffeta_heter
-}
-
-c_index_test_all_homo <- do.call(rbind, c_index_test_all_homo)
-c_index_test_all_heter <- do.call(rbind, c_index_test_all_heter)
+# Check dimensions
+dim(z)
+length(delta)
+length(time)
+length(beta_ext)
 ```
 
+### Example 1: Integrating external coefficients (`beta`)
 
-Now we can plot the C-index vs $\eta$ to see how the C-index varies with different $\eta$. For homogenous settings we can see that
+We provide the external coefficients via the beta argument and specify a sequence of tuning parameters eta_list.
 
 
-```{r, fig = TRUE}
-library(ggplot2)
-plot_data <- data.frame(eta = eta_list, 
-                         c_index_test_homo = colMeans(c_index_test_all_homo),
-                         c_index_test_heter = colMeans(c_index_test_all_heter))
-# Basic line plot with shaded area for c_index_test
-p1 <- ggplot(plot_data, aes(x = eta)) +
-  geom_line(aes(y = c_index_test_homo), color = "blue", size = 1) +  # Change size as needed
-  theme_minimal() + 
-  ggtitle("C-Index for Homogeneous Setting, Armadillo") +
-  labs(x = expression(eta), y = "C-Index") +
-  theme(
-    plot.title = element_text(size = 20),
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
-    legend.text = element_text(size = 12),
-    axis.text.x = element_text(size = 14), # X-axis labels
-    axis.text.y = element_text(size = 14)
-  )
+```{r, eval=FALSE}
+eta_values <- seq(0, 5, by = 1) # Example sequence for eta
 
-print(p1)
+fit_beta <- coxkl(z = z,
+                  delta = delta,
+                  time = time,
+                  beta = beta_ext,
+                  eta_list = eta_values)
 
-p2 <- ggplot(plot_data, aes(x = eta)) +
-  geom_line(aes(y = c_index_test_heter), color = "blue", size = 1) +
-  theme_minimal() + 
-  ggtitle("C-Index for Heterogeneous Setting, Armadillo") +
-  labs(x = expression(eta), y = "C-Index")+
-  theme(
-    plot.title = element_text(size = 20),
-    axis.title.x = element_text(size = 20),
-    axis.title.y = element_text(size = 16),
-    legend.text = element_text(size = 15),
-    axis.text.x = element_text(size = 14), 
-    axis.text.y = element_text(size = 14)
-  ) 
-print(p2)
+# Results are stored in lists corresponding to eta_list
+# Coefficients for the first eta value (eta=0, standard Cox):
+print(head(fit_beta$beta_list[[1]]))
+
+# Linear predictors for the third eta value (eta=2):
+print(head(fit_beta$LP_list[[3]]))
+
+# The eta values used:
+print(fit_beta$eta_list)
 ```
 
+When `eta` = 0, coxkl fits a standard Cox model without external information. As `eta` increases, the resulting coefficients are increasingly influenced by the provided `beta_ext`.
 
+### Example 2: Integrating external risk scores (`RS`)
 
+Alternatively, we can provide pre-calculated risk scores. Let's calculate them using the external beta for this example.
+```{r, eval=FALSE}
+# Calculate Risk Score (ensure matrix operations are correct)
+rs_ext <- as.matrix(z) %*% as.matrix(beta_ext)
 
-## Using Cross-Validation to Select $\eta$:
-```{r}
-nfolds = 5
+fit_rs <- coxkl(z = z,
+                delta = delta,
+                time = time,
+                RS = rs_ext, # Provide RS instead of beta
+                eta_list = eta_values)
 
-# Load simulated data
-data(simulatedData)
-
-# Extract components from simulatedData
-data_internal_list <- simulatedData$data_internal_list
-beta_external_homo <- simulatedData$beta_external1
-beta_external_heter <- simulatedData$beta_external2
-
-data_internal <- data_internal_list[[1]]$data
-z <- data_internal[,1:6]
-delta <- data_internal$status
-time <- data_internal$time
-
-beta_
-
-res <- cv.coxkl(z, delta, time, RS = NULL, beta=beta_external_homo, eta_list, tol=1.0e-7, Mstop = 50, nfolds = 5, criteria = "C-Index")
-
-
+# Coefficients for the highest eta value (eta=5):
+print(head(fit_rs$beta_list[[length(eta_values)]]))
 ```
 
+The coxkl function adapts its internal KL divergence calculation based on whether `beta` or `RS` is provided.
 
+(Note: You would typically use cross-validation, potentially via `cv.coxkl`, to select the optimal eta value based on prediction performance on held-out data.)
 
+### High-Dimensional Integration (coxkl_highdim)
 
-## Real Data Example `SUPPORT`
- 
-In this section, we illustrate the usage of our package by analyzing the time-varying effects on the real data `SUPPORT` (Study to Understand Prognoses Preferences Outcomes and Risks of Treatment).
-We use the processed `SUPPORT` data set included in the R package [@casebase].
+For datasets with many predictors ($p > n$), the `coxkl_highdim` function combines KL integration with regularization (Lasso, Ridge, or Elastic Net).
 
-We study the time-varying effects of metastatic cancer as the illustration example and include
+Let's assume `ExampleDataHighDim` provides high-dimensional data (`z`, `status`, `time`). We'll use the previously calculated `rs_ext` as the external information source.
 
-First we load the data and get the survival outcome:
+```{r, eval=FALSE}
+# data("ExampleDataHighDim") # If you have separate high-dim data
 
-```{r, message = FALSE}
-data(support)
+# Using the low-dim data structure for demonstration:
+z_highdim <- ExampleData$z
+delta_highdim <- ExampleData$status
+time_highdim <- ExampleData$time
+# rs_ext calculated earlier
 
-time <- support$d.time
-death <- support$death
+# Fit high-dimensional model with Lasso penalty (alpha=1)
+fit_highdim <- coxkl_highdim(z = z_highdim,
+                             delta = delta_highdim,
+                             time = time_highdim,
+                             RS = rs_ext, # Provide Risk Score
+                             eta_list = 1, # Single eta value for high-dim KL weight
+                             alpha = 1,    # Lasso penalty
+                             nlambda = 50) # Number of lambda values for regularization path
 ```
-
 
 

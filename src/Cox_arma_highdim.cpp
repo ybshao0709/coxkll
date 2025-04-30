@@ -122,29 +122,20 @@ void gd_cox(arma::mat &b, const arma::mat &x, arma::vec &r, arma::vec &eta, doub
   for (int j=K1(g); j<K1(g+1); j++) {z(j-K1(g)) = crossprod(x, r, n, j)/n + a(j);}  
   double z_norm = norm(z,K);      //||z_g||_2,  L2 norm.
   
+  // Calculate X_g^T * S (where S is the score vector r) for the group
+  arma::vec XgTr = arma::zeros<arma::vec>(K);
+  for (int j = K1(g); j < K1(g+1); j++) {
+    // Use arma::dot, assuming 'r' is the score vector S passed from gdfit_cox_kl
+    XgTr(j - K1(g)) = arma::dot(x.col(j), r);
+  }
+  
   // Update b based on the penalty
-  if (penalty == "lasso") {
-    // Lasso penalty (L1)
-    double len = S(v * z_norm, lam1) / (v * (1 + lam2));
-    if (len != 0 || a(K1(g)) != 0) {
-      for (int j = K1(g); j < K1(g+1); j++) {
-        b(l, j) = len * z(j - K1(g)) / z_norm;
-        double shift = b(l, j) - a(j);
-        if (fabs(shift) > maxChange) maxChange = fabs(shift);
-        for (int i = 0; i < n; i++) {
-          double si = shift * x(i, j);
-          r(i) -= si;
-          eta(i) += si;
-        }
-      }
-    }
-    if (len > 0) df(l) += K * len / z_norm;
-  } else if (penalty == "ridge") {
-    // Ridge penalty (L2)
-    // Rcout << "Ridge penalty" << std::endl;
-    // Rcout << "lam2: " << lam2 << std::endl;
+  // if (penalty == "lasso") {
+  // Lasso penalty (L1)
+  double len = S(v * z_norm, lam1) / (v * (1 + lam2));
+  if (len != 0 || a(K1(g)) != 0) {
     for (int j = K1(g); j < K1(g+1); j++) {
-      b(l, j) = (a(j) + z(j - K1(g))) / (v * (1 + lam2));
+      b(l, j) = len * z(j - K1(g)) / z_norm;
       double shift = b(l, j) - a(j);
       if (fabs(shift) > maxChange) maxChange = fabs(shift);
       for (int i = 0; i < n; i++) {
@@ -153,11 +144,57 @@ void gd_cox(arma::mat &b, const arma::mat &x, arma::vec &r, arma::vec &eta, doub
         eta(i) += si;
       }
     }
-    df(l) += K;  // Degrees of freedom for ridge
-  } else {
-    // Handle other penalties if necessary
-    Rcpp::stop("Unknown penalty type.");
   }
+  if (len > 0) df(l) += K * len / z_norm;
+  // } else if (penalty == "ridge") {
+  //   // Ridge penalty (L2)
+  //   // Rcout << "Ridge penalty" << std::endl;
+  //   // Rcout << "lam2: " << lam2 << std::endl;
+  //   for (int j = K1(g); j < K1(g+1); j++) {
+  //     b(l, j) = (a(j) + z(j - K1(g))) / (v * (1 + lam2));
+  //     double shift = b(l, j) - a(j);
+  //     if (fabs(shift) > maxChange) maxChange = fabs(shift);
+  //     for (int i = 0; i < n; i++) {
+  //       double si = shift * x(i, j);
+  //       r(i) -= si;
+  //       eta(i) += si/n;
+  //     }
+  //   }
+  //   df(l) += K;  // Degrees of freedom for ridge
+  //   // double denominator_ridge = v + lam2;
+  //   // 
+  //   // if (denominator_ridge <= 1e-15) {
+  //   //   Rcpp::warning("Ridge update denominator near zero for group %d. Check v (%f) and lam2 (%f). Setting update to zero.", g, v, lam2);
+  //   //   // Set beta for this group to zero or keep old value? Zeroing might be safer.
+  //   //   b.row(l).subvec(K1(g), K1(g+1)-1).zeros();
+  //   // } else {
+  //   //   arma::vec beta_new_g = (v * a.subvec(K1(g), K1(g+1)-1) + XgTr) / denominator_ridge;
+  //   //   
+  //   //   // Calculate shift and update eta, r, maxChange
+  //   //   for (int j_idx = 0; j_idx < K; ++j_idx) {
+  //   //     int j = K1(g) + j_idx; // Actual column index
+  //   //     double shift = beta_new_g(j_idx) - a(j);
+  //   //     b(l, j) = beta_new_g(j_idx); // Update beta matrix
+  //   //     
+  //   //     if (!std::isfinite(shift)) {
+  //   //       Rcpp::warning("Non-finite shift in Ridge update for group %d, feature %d.", g, j);
+  //   //       shift = 0;
+  //   //     }
+  //   //     if (fabs(shift) > maxChange) maxChange = fabs(shift);
+  //   //     
+  //   //     // Update eta and approximate update to r (score)
+  //   //     for (int i = 0; i < n; i++) {
+  //   //       double si = shift * x(i, j);
+  //   //       eta(i) += si;
+  //   //       r(i) -= si * n; // Approximate score update (using v)
+  //   //     }
+  //   //   }
+  //   // }
+  //   // df(l) += K; // Degrees of freedom for ridge
+  // } else {
+  //   // Handle other penalties if necessary
+  //   Rcpp::stop("Unknown penalty type.");
+  // }
   
   // Update b
   // double len;
@@ -391,7 +428,7 @@ List gdfit_cox_kl(const arma::mat &X, const arma::vec &d,
                   const bool &warn, const bool &user,
                   const int &actIter = 20){
 
-  // cout<<"done 1"<<endl;
+  // Rcpp::Rcout<<"done 1"<<endl;
   // Lengths/dimensions
   int n = d.n_elem;                     //number of samples
   int L = lambda.n_elem;                //number of penalized coefficients (for grid search)
@@ -435,6 +472,9 @@ List gdfit_cox_kl(const arma::mat &X, const arma::vec &d,
 
   // cout<<"done 2"<<endl;
   // Path through different  lambda:
+  // Rcpp::Rcout<<"done 2"<<endl;
+  // Rcpp::Rcout<<"lstart: "<<lstart<<endl;
+  // Rcpp::Rcout<<"L: "<<L<<endl;
   for (int l = lstart; l < L; ++l){
 
     tot_iter = 0; // reset max_iter for each lambda
@@ -460,16 +500,11 @@ List gdfit_cox_kl(const arma::mat &X, const arma::vec &d,
     }
     
     std::string penalty_str;
-    if (alpha == 1.0) {
-      penalty_str = "lasso";
+    if (alpha == 0.0) {
+      Rcpp::warning("alpha should be larger than 0; defaulting to 'lasso'");
     }
-    else if (alpha == 0.0) {
-      penalty_str = "ridge";
-    }
-    else {
-      Rcpp::warning("alpha should be exactly 0 (ridge) or 1 (lasso); defaulting to 'lasso'");
-    }
-
+    
+    // Rcpp::Rcout << "begin: " << std::endl;
     //begin iteration:
     while(tot_iter < max_iter){
 
@@ -498,12 +533,15 @@ List gdfit_cox_kl(const arma::mat &X, const arma::vec &d,
 
 
 	      haz = exp(eta);                                        // eta (to be updated below), for (int i=0; i<n; i++) haz(i) = exp(eta(i));
+	      // Rcpp::Rcout << "beta: " << beta << std::endl;
+	      
 	      rsk(n-1) = haz(n-1);
 	      for (int i=n-2; i>=0; i--) {
-	        rsk(i) = rsk(i+1) + haz(i);                          // rsk : reverse culmulative sum of haz
+	        rsk(i) = rsk(i+1) + haz(i);                          // Cumulative sum from the end: sum_{k=i}^{n-1} exp(z_k*beta) = sum_{k=i}^{n-1} haz_k
 	      }
 	      for (int i=0; i<n; i++) {
-	        Loss(l) += d(i)*eta(i) - d(i)*log(rsk(i));           // update Loss
+	        double weighted_term = (d(i)+eta_kl*delta_tilde(i))/(1.0+eta_kl); // weighted term
+	        Loss(l) += weighted_term*eta(i) - d(i)*log(rsk(i));           // update Loss
 	      }
 
 	      //Approximate L:
@@ -512,23 +550,33 @@ List gdfit_cox_kl(const arma::mat &X, const arma::vec &d,
 	      for (int i=1; i<n; i++) {
 	        h(i) = h(i-1) + d(i)/rsk(i);                         // hi: sum(delta_l / rsk_l) (l: at risk set)   this is cumulative baseline hazard
 	      }
+	      // Rcpp::Rcout << "h(i): " << h << std::endl;
 	      for (int i=0; i<n; i++) {
 	        h(i) = h(i)*haz(i);
 	        s    = (d(i)+eta_kl*delta_tilde(i))/(1+eta_kl) - h(i);   // corresponds to our first order derivative wrt pseudo-response
 	        if (h(i)==0) {
-            //raiseerror if d(i) is not 0:
+            // raiseerror if d(i) is not 0:
             if(d(i) != 0){
+              // Rcpp::Rcout << "h(i): " << h(i) << std::endl;
+              // Rcpp::Rcout << "d(i): " << d(i) << std::endl;
+              // Rcpp::Rcout << "i: " << i << std::endl;
               Rcpp::stop("h(i)==0 but d(i) is not 0");
             }
             r(i) = (d(i)+eta_kl*delta_tilde(i))/(1+eta_kl);
-          }                 // corresponds to our l1/eta derivative
-	        else r(i) = s/v;                     // use identical matrix to approximate the hessian matrix
+          }                                     // corresponds to our l1/eta derivative
+	        else r(i) = s/v;                      // use identical matrix to approximate the hessian matrix
 	      }
         // Rcpp::Rcout << "Loss: " << Loss(l) << std::endl;
         // Rcpp::Rcout << "r: " << accu(r) << std::endl;
         //////////////////////////////////////////
 
 	      // Check for saturation    //not sure if we should change this
+	      if (!std::isfinite(Loss(l))) {
+	        if (warn) warning("Loss is non-finite at lambda %f; exiting...", lambda(l));
+	        for (int ll=l; ll<L; ll++) iter(ll) = NA_INTEGER;
+	        tot_iter = max_iter; // Force exit from outer while loop
+	        break; // Exit hot_i loop
+	      }
 	      if (Loss(l)/nullDev < .01) {
 	        if (warn) warning("Model saturated; exiting...");
 	        for (int ll=l; ll<L; ll++) iter(ll) = NA_INTEGER;
@@ -587,7 +635,8 @@ List gdfit_cox_kl(const arma::mat &X, const arma::vec &d,
     if(tot_iter == max_iter){
       Rcout <<"lambda "<< lambda(l) << " failed to converge within "<<max_iter<<" iterations"<<endl;
     }
-
+    
+    // Rcpp::Rcout << "tot_iter: " << tot_iter << std::endl;
   }
 
   res["beta"]  = beta;

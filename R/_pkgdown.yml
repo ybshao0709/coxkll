@@ -1,0 +1,54 @@
+# _pkgdown.yml
+
+# Website Basic Configuration
+url: https://umkevinhe.github.io/coxkl/ # Replace with your actual deployed URL later
+  template:
+  bootstrap: 5 # Use Bootstrap 5
+params:
+  bootswatch: lumen # Theme similar to the template
+mathjax: true # Enable MathJax for LaTeX rendering
+
+# Navigation Bar Structure
+navbar:
+  type: default # Standard navbar type
+  left: # Items aligned to the left
+    - text: "Get started"
+    href: index.html
+  - text: "Reference"
+    href: reference/index.html
+  - text: "Articles" # Placeholder for future detailed vignettes
+    menu:
+    - text: "Introduction (This Page)"
+    href: index.html
+    # - text: "Using High-Dimensional Functions"
+    #   href: articles/high_dimensional.html # Example future article
+    # - text: "Understanding KL Integration"
+    #   href: articles/kl_theory.html # Example future article
+  right: # Items aligned to the right
+    - icon: fa-github fa-lg # Link to GitHub repository
+    # href: https://github.com/YourUsername/coxkl # Replace with your repo URL
+  
+  # Function Reference Page Organization
+  reference:
+    - title: "Low-Dimensional Cox KL Integration"
+      desc: >
+        Functions for integrating external information (risk scores or coefficients)
+      into Cox models when the number of predictors (p) is less than or
+      comparable to the number of observations (n). Includes cross-validation
+      for tuning parameter selection.
+      contents:
+        - coxkl
+        - cv.coxkl # Assuming this function exists
+    
+    - title: "High-Dimensional Cox KL Integration"
+      desc: >
+        Functions designed for high-dimensional data (p > n), incorporating
+      external information via KL divergence alongside regularization
+      (Lasso, Ridge, Elastic Net). Includes cross-validation.
+      contents:
+        - coxkl_highdim
+        - cv.coxkl_highdim # Assuming this function exists
+  
+  # Development Mode (shows unreleased features/docs) - Optional
+  # development:
+  #   mode: auto

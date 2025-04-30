@@ -134,7 +134,7 @@ coxkl_highdim <-function(z, delta, time,
                       gamma = as.double(gamma), group_multiplier = group.multiplier,
                       dfmax = as.integer(dfmax),
                       gmax = length(unique(group)),
-                      warn = as.integer(warn), user = FALSE)
+                      warn = as.integer(warn), user = TRUE)
   
   b     <- matrix(t(res$beta),p,nlambda)
   iter  <- as.vector(res$iter)
@@ -217,7 +217,14 @@ cv.coxkl_highdim <-function(z, delta, time,
   fit.args$eta_list <- eta_list
   
   fit.args$returnX <- TRUE
-  fit <- do.call("coxkl_highdim", fit.args)
+  # fit <- do.call("coxkl_highdim", fit.args)
+  # this will run coxkl_highdim, assign to fit, and swallow all stdout
+  invisible(
+    capture.output(
+      fit <- do.call("coxkl_highdim", fit.args)
+    )
+  )
+  
   
   X <- fit$XX
   delta_matrix <- fit$delta_matrix
@@ -258,7 +265,7 @@ cv.coxkl_highdim <-function(z, delta, time,
   if(cv.method == 'LinPred'){
     for (i in 1:nfolds) {
       res <- cvf.surv(i, X, RS, fit$delta, fit$time, K, fold, fold_sub, cv.args)
-      print(res)
+      # print(res)
       Y[fold==i, 1:res$nl] <- res$yhat
     }
     ind <- which(apply(is.finite(Y), 2, all))
@@ -299,7 +306,12 @@ cvf.surv <- function(i, z, RS, delta, time, K, fold, fold_sub, cv.args) {
   cv.args$delta <- delta[fold_sub!=i]
   cv.args$RS <- RS[fold_sub!=i]
   cv.args$K <- K
-  fit.i <- do.call("coxkl_highdim", cv.args)
+  # fit.i <- do.call("coxkl_highdim", cv.args)
+  invisible(
+    capture.output(
+      fit.i <- do.call("coxkl_highdim", cv.args)
+    )
+  )
   
   Xlist_temp2 <- z[fold_sub==i, , drop=FALSE]
   
@@ -320,7 +332,13 @@ cvf.survVVH <- function(i, z, RS, delta, time, K, fold, fold_sub, cv.args) {
   cv.args$delta <- delta[fold_sub!=i]
   cv.args$RS <- RS[fold_sub!=i]
   cv.args$K <- K
-  fit.i <- do.call("coxkl_highdim", cv.args)
+  # fit.i <- do.call("coxkl_highdim", cv.args)
+  invisible(
+    capture.output(
+      fit.i <- do.call("coxkl_highdim", cv.args)
+    )
+  )
+  
   
   Xlist_temp2 <- z[fold_sub==i, , drop=FALSE]
   
