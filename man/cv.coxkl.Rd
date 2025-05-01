@@ -14,7 +14,7 @@ cv.coxkl(
   tol = 1e-07,
   Mstop = 50,
   nfolds = 5,
-  criteria = "C-Index"
+  criteria = "V&VH"
 )
 }
 \arguments{

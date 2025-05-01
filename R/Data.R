@@ -114,7 +114,17 @@ NULL
 #' 
 #' 
 #' @examples
+#' \dontrun{
+#' rm(list = ls())
+#' library(devtools)
+#' 
+#' setwd("~/University of Michigan Dropbox/Lingfeng Luo/Lingfeng Research/R Tutorial Package/coxkl/coxkll/")
+#' 
+#' load_all()
+#' 
 #' data(support)
+#' set.seed(123)
+#' 
 #' support <- support[support$ca %in% c("metastatic"),]
 #' time <- support$d.time
 #' death <- support$death
@@ -132,5 +142,95 @@ NULL
 #' z <- data.frame(z_age, sex, diabetes)
 #' colnames(z) <- c("age_50", "age_50_59", "age_70", "diabetes", "male")
 #' data <- data.frame(time, death, z)
-#' fit.coxtv <- coxtv(event = death, z = z, time = time)
+#' 
+#' 
+#' n <- nrow(data)
+#' n_ext  <- floor(0.87 * n)
+#' n_int  <- floor(0.03 * n)
+#' n_test <- n - n_ext - n_int
+#' idx     <- sample(seq_len(n))
+#' idx_ext <- idx[       1:n_ext]
+#' idx_int <- idx[(n_ext + 1):(n_ext + n_int)]
+#' idx_test<- idx[(n_ext + n_int + 1):n]
+#' 
+#' external_data <- data[idx_ext, ]
+#' internal_data <- data[idx_int, ]
+#' test_data     <- data[idx_test, ]
+#' 
+#' library(survival)
+#' ext_cox <- coxph(
+#'   Surv(time, death) ~ age_50 + age_50_59 + age_70 + diabetes + male,
+#'   data = external_data
+#' )
+#' beta_external <- coef(ext_cox)
+#' 
+#' result1 <- cv.coxkl(
+#'   z        = internal_data[, c("age_50", "age_50_59", "age_70", "diabetes", "male")],
+#'   delta    = internal_data$death,
+#'   time     = internal_data$time,
+#'   beta     = beta_external,
+#'   eta_list = seq(0, 5, by = 1)
+#' )
+#' plot(result1$result)
+#' #' do not run:
+#' 
+#' 
+#' library(devtools)
+#' rstudioapi::getActiveDocumentContext()$path
+#' 
+#' setwd("~/University of Michigan Dropbox/Lingfeng Luo/Lingfeng Research/R Tutorial Package/coxkl/coxkll/")
+#' 
+#' load_all()
+#' 
+#' data(support)
+#' set.seed(123)
+#' 
+#' support <- support[support$ca %in% c("metastatic"),]
+#' time <- support$d.time
+#' death <- support$death
+#' diabetes <-  model.matrix(~factor(support$diabetes))[,-1]
+#' #sex: female as the reference group
+#' sex <- model.matrix(~support$sex)[,-1]
+#' #age: continuous variable
+#' age <-support$age
+#' age[support$age<=50] <- "<50"
+#' age[support$age>50 & support$age<=60] <- "50-59"
+#' age[support$age>60 & support$age<70] <- "60-69"
+#' age[support$age>=70] <- "70+"
+#' age <- factor(age, levels = c("60-69", "<50", "50-59", "70+"))
+#' z_age <- model.matrix(~age)[,-1]
+#' z <- data.frame(z_age, sex, diabetes)
+#' colnames(z) <- c("age_50", "age_50_59", "age_70", "diabetes", "male")
+#' data <- data.frame(time, death, z)
+#' 
+#' 
+#' n <- nrow(data)
+#' n_ext  <- floor(0.87 * n)
+#' n_int  <- floor(0.03 * n)
+#' n_test <- n - n_ext - n_int
+#' idx     <- sample(seq_len(n))
+#' idx_ext <- idx[       1:n_ext]
+#' idx_int <- idx[(n_ext + 1):(n_ext + n_int)]
+#' idx_test<- idx[(n_ext + n_int + 1):n]
+#' 
+#' external_data <- data[idx_ext, ]
+#' internal_data <- data[idx_int, ]
+#' test_data     <- data[idx_test, ]
+#' 
+#' library(survival)
+#' ext_cox <- coxph(
+#'   Surv(time, death) ~ age_50 + age_50_59 + age_70 + diabetes + male,
+#'   data = external_data
+#' )
+#' beta_external <- coef(ext_cox)
+#' 
+#' result1 <- cv.coxkl(
+#'   z        = internal_data[, c("age_50", "age_50_59", "age_70", "diabetes", "male")],
+#'   delta    = internal_data$death,
+#'   time     = internal_data$time,
+#'   beta     = beta_external,
+#'   eta_list = seq(0, 5, by = 1)
+#' )
+#' plot(result1$result)
+#' }
 "support"

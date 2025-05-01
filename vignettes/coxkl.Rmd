@@ -38,8 +38,8 @@ This section provides a brief overview of the main functions using example data 
 
 First, load the coxkl package:
 
-```{r, eval=FALSE}
-library(coxkl)
+```{r}
+library(coxkll)
 ```
 
 ### Low-Dimensional Integration (coxkl)
@@ -67,7 +67,7 @@ length(beta_ext)
 We provide the external coefficients via the beta argument and specify a sequence of tuning parameters eta_list.
 
 
-```{r, eval=FALSE}
+```{r}
 eta_values <- seq(0, 5, by = 1) # Example sequence for eta
 
 fit_beta <- coxkl(z = z,
