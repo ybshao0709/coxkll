@@ -159,74 +159,59 @@ To illustrate a complete workflow we use the SUPPORT study contained in the surv
 We treat the large “external” cohort as historical information and a small “internal” cohort as current data to be augmented.
 
 ```{r}
-library(survival)
-library(coxkl)
-
 # Load SUPPORT data and select patients with metastatic cancer
 set.seed(123)
 
-data("support", package = "survival")
-support <- support[support$ca %in% "metastatic", ]
+support <- support[support$ca %in% c("metastatic"),]
+time <- support$d.time
+death <- support$death
+diabetes <-  model.matrix(~factor(support$diabetes))[,-1]
+#sex: female as the reference group
+sex <- model.matrix(~support$sex)[,-1]
+#age: continuous variable
+age <-support$age
+age[support$age<=50] <- "<50"
+age[support$age>50 & support$age<=60] <- "50-59"
+age[support$age>60 & support$age<70] <- "60-69"
+age[support$age>=70] <- "70+"
+age <- factor(age, levels = c("60-69", "<50", "50-59", "70+"))
+z_age <- model.matrix(~age)[,-1]
+z <- data.frame(z_age, sex, diabetes)
+colnames(z) <- c("age_50", "age_50_59", "age_70", "diabetes", "male")
+data <- data.frame(time, death, z)
 
-# Create basic covariates
 
-time  <- support$d.time
-status <- support$death
-
-# Diabetes (dummy)
-diabetes <- model.matrix(~ factor(support$diabetes))[ , -1]
-
-# Sex (dummy, female reference)
-sex <- model.matrix(~ support$sex)[ , -1]
-
-# Categorised age
-age_cat <- cut(support$age,
-               breaks = c(-Inf, 50, 60, 70, Inf),
-               labels = c("<50", "50‑59", "60‑69", "70+"),
-               right   = FALSE)
-
-a_mat <- model.matrix(~ age_cat)[ , -1]
-
-# Combine all predictors
-z <- data.frame(a_mat, sex, diabetes)
-colnames(z) <- c("age_<50", "age_50‑59", "age_60‑69", "age_70+", "male", "diabetes")
-
-# Assemble full data frame
-data_all <- data.frame(time = time,
-                       status = status,
-                       z)
-
-# Split into external (historical), internal (current), and test sets
-n  <- nrow(data_all)
-idx <- sample(seq_len(n))
-
+n <- nrow(data)
 n_ext  <- floor(0.87 * n)
 n_int  <- floor(0.03 * n)
-idx_ext  <- idx[1:n_ext]
-idx_int  <- idx[(n_ext + 1):(n_ext + n_int)]
-idx_test <- idx[-c(1:(n_ext + n_int))]
+n_test <- n - n_ext - n_int
+idx     <- sample(seq_len(n))
+idx_ext <- idx[       1:n_ext]
+idx_int <- idx[(n_ext + 1):(n_ext + n_int)]
+idx_test<- idx[(n_ext + n_int + 1):n]
 
-external_data <- data_all[idx_ext, ]
-internal_data <- data_all[idx_int, ]
-test_data     <- data_all[idx_test, ]
+external_data <- data[idx_ext, ]
+internal_data <- data[idx_int, ]
+test_data     <- data[idx_test, ]
 
-# 1. Fit a Cox model on the external data to obtain coefficients
-ext_cox <- coxph(Surv(time, status) ~ ., data = external_data)
-
+library(survival)
+ext_cox <- coxph(
+  Surv(time, death) ~ age_50 + age_50_59 + age_70 + diabetes + male,
+  data = external_data
+)
 beta_external <- coef(ext_cox)
 
-# 2. Integrate external β into the internal data with varying eta
-eta_seq <- seq(0, 5, by = 1)
-result <- coxkl(z        = internal_data[ , names(beta_external)],
-                delta    = internal_data$status,
-                time     = internal_data$time,
-                beta     = beta_external,
-                eta_list = eta_seq)
+result1 <-  coxkl(
+  z        = internal_data[, c("age_50", "age_50_59", "age_70", "diabetes", "male")],
+  delta    = internal_data$death,
+  time     = internal_data$time,
+  beta     = beta_external,
+  eta_list = seq(0, 5, by = 1)
+)
 
-# 3. Evaluate log‑partial likelihood on the held‑out test set
-pred <- predict(result,
-                newz  = test_data[ , names(beta_external)],
-                delta = test_data$status,
+pred <- predict(result1,
+                newz = test_data[, c("age_50", "age_50_59", "age_70", "diabetes", "male")],
+                delta = test_data$death,
                 time  = test_data$time)
 ```
 
@@ -235,10 +220,7 @@ Use `plot` function to visualize the results:
 ```{r, fig =TRUE, fig.width=7, fig.height=5}
 
 # Plot improvement across eta values
-plot(pred,
-     main = "Test Set Partial Likelihood vs. KL Weight (eta)",
-     xlab = "eta (weight on external information)",
-     ylab = "Partial log‑likelihood")
+plot(pred)
 ```
 
 The figure shows how incorporating external coefficients with a moderate KL weight ($\eta$) can improve the partial likelihood on unseen data.
