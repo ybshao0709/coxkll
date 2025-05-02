@@ -31,22 +31,7 @@
 #'   }
 #'
 #' @examples
-#' fit <- coxkl(z      = train$z,
-#'              delta  = train$delta,
-#'              time   = train$time,
-#'              beta   = beta_external,
-#'              eta_list = seq(0, 5, by = 1))
-#'
-#' pred <- predict(fit,
-#'                 newz  = test$z,
-#'                 delta = test$delta,
-#'                 time  = test$time)
-#'
-#' # Linear predictors for eta = 2
-#' head(pred$LP_list[[which(fit$eta_list == 2)]])
-#'
-#' # Corresponding log partial likelihood on the test set
-#' pred$likelihood[which(fit$eta_list == 2)]
+#' 
 #' @method predict coxkl
 #' @export
 predict.coxkl <- function(object,
@@ -55,24 +40,24 @@ predict.coxkl <- function(object,
                           time      = NULL,
                           likelihood = TRUE,
                           ...) {
-  
+
   if (!inherits(object, "coxkl"))
     stop("`object` must be of class \"coxkl\" (output of coxkl()).")
-  
+
   if (!is.matrix(newz))
     newz <- as.matrix(newz)
-  
+
   p_train <- nrow(object$beta_list[[1L]])
   if (ncol(newz) != p_train)
     stop(sprintf("`newz` has %d columns but the model was trained with %d.",
                  ncol(newz), p_train))
-  
+
   if (likelihood && (is.null(delta) || is.null(time)))
     stop("`delta` and `time` must be supplied when likelihood = TRUE.")
-  
+
   LP_list <- lapply(object$beta_list,
                     function(b) newz %*% b)
-  
+
   if (likelihood) {
     lik_vec <- vapply(LP_list,
                       pl_cal_theta,
@@ -82,13 +67,13 @@ predict.coxkl <- function(object,
   } else {
     lik_vec <- NULL
   }
-  
+
   out <- list(LP_list     = LP_list,
               beta_list   = object$beta_list,
               eta_list    = object$eta_list,
               likelihood  = lik_vec)
-  
+
   class(out) <- "coxklpred"
-  
+
   invisible(out)
 }

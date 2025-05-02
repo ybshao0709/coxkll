@@ -42,12 +42,3 @@ A ggplot object representing the relationship between performance score and eta.
 This function takes a model fitted from \code{cv.coxkl} to plot the
 relationship between performance score and corresponding \eqn{\eta}.
 }
-\examples{
-data(ExampleData)
-library(survival)
-result <- cv.coxkl(z = ExampleData$z, delta = ExampleData$status, 
-                    time = ExampleData$time, beta = ExampleData$beta_external,
-                    eta_list = seq(0, 5, 1))
-plot <- plot_FS(result)
-
-}

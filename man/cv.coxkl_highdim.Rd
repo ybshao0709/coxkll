@@ -4,7 +4,7 @@
 \alias{cv.coxkl_highdim}
 \title{Cox Proportional Hazards Model with KL Divergence}
 \usage{
-\method{cv}{coxkl_highdim}(
+cv.coxkl_highdim(
   z,
   delta,
   time,

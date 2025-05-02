@@ -4,7 +4,7 @@
 \alias{cv.coxkl}
 \title{Cox Proportional Hazards Model with KL Divergence using Cross-Validation to select best tuning parameter.}
 \usage{
-\method{cv}{coxkl}(
+cv.coxkl(
   z,
   delta,
   time,

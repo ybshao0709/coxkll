@@ -44,21 +44,3 @@ values on the new data (returned only if
 Computes linear predictors (and, if desired, the log partial
 likelihood) for new observations given a fitted Cox–KL model.
 }
-\examples{
-fit <- coxkl(z      = train$z,
-             delta  = train$delta,
-             time   = train$time,
-             beta   = beta_external,
-             eta_list = seq(0, 5, by = 1))
-
-pred <- predict(fit,
-                newz  = test$z,
-                delta = test$delta,
-                time  = test$time)
-
-# Linear predictors for eta = 2
-head(pred$LP_list[[which(fit$eta_list == 2)]])
-
-# Corresponding log partial likelihood on the test set
-pred$likelihood[which(fit$eta_list == 2)]
-}
