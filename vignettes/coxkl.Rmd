@@ -11,43 +11,58 @@ editor_options:
 # bibliography: references.bib
 ---
 
-
-
 ## Introduction:
-Prognosis prediction is a crucial aspect of survival analysis. In recent years, the surge of biobank data encompassing diverse high-dimensional risk factors such as genetics, transcriptomics, and electronic health records has opened new avenues for advancing prognosis prediction. Despite this potential, risk prediction for biobank data faces challenges such as limited effective sample sizes, high dimensionality, low signal-to-noise ratios, and patient privacy concerns.
 
-Integrating external information is expected to enhance prediction performance. However, a key issue with classical integration approaches is the assumption of similar underlying distributions across multiple data sources, which often is not the case. Overlooking the heterogeneity among different information sources can introduce significant bias. Consequently, it is crucial to develop a transfer learning procedure that effectively measures the differences between these populations.
+Prognosis prediction is a crucial aspect of survival analysis.
+In recent years, the surge of biobank data encompassing diverse high-dimensional risk factors such as genetics, transcriptomics, and electronic health records has opened new avenues for advancing prognosis prediction.
+Despite this potential, risk prediction for biobank data faces challenges such as limited effective sample sizes, high dimensionality, low signal-to-noise ratios, and patient privacy concerns.
+
+Integrating external information is expected to enhance prediction performance.
+However, a key issue with classical integration approaches is the assumption of similar underlying distributions across multiple data sources, which often is not the case.
+Overlooking the heterogeneity among different information sources can introduce significant bias.
+Consequently, it is crucial to develop a transfer learning procedure that effectively measures the differences between these populations.
 
 Although Kullback-Leibler (KL) divergence has been proposed to integrate external predicted probabilities for binary outcomes, such approaches are not directly applicable to censored time-to-event data due to the complexities of censoring and the typical format of external survival information (e.g., risk scores or coefficients lacking baseline hazard).
 
-To address these issues, the coxkl R package provides a transfer learning-based framework for efficient survival data integration, leveraging external information alongside newly collected time-to-event data. This package offers several key features:
+To address these issues, the `coxkl` R package provides a transfer learning-based framework for efficient survival data integration, leveraging external information alongside newly collected time-to-event data.
+This package offers several key features:
 
 Privacy-Preserving: Requires less sensitive summary statistics (like risk scores or coefficient estimates) from external sources, with no need for individual-level external data.
 Robust & Flexible: Handles potential heterogeneity between data sources and supports various formats of external information (coefficients, risk scores, potentially clinical risk groups - check if ranking is implemented).
 Adaptive Weighting: Uses tuning parameters (eta) to control the relative weight of external information, prioritizing compatible sources.
-High-Dimensionality Support: Implements regularized methods (Ridge, LASSO, Elastic Net via coxkl_highdim) to handle datasets where the number of predictors exceeds the number of observations.
+High-Dimensionality Support: Implements regularized methods (Ridge, LASSO, Elastic Net via `coxkl_highdim`) to handle datasets where the number of predictors exceeds the number of observations.
 Partial Information Handling: Accommodates scenarios where external studies provide information on only a subset of predictors available in the internal study.
-This vignette provides an introduction to the coxkl package and demonstrates its core functionalities.
-
+This vignette provides an introduction to the `coxkl` package and demonstrates its core functionalities.
 
 ## Installation:
-You can install the development version of coxkl from GitHub using remotes:
+
+You can install the development version of `coxkl` from GitHub using remotes:
+
+```{r, eval=FALSE}
+require("devtools")
+require("remotes")
+remotes::install_github("UM-KevinHe/coxkll", ref = "main")
+```
 
 ## Quick Start
+
 This section provides a brief overview of the main functions using example data included with the package.
 
-First, load the coxkl package:
+First, load the `coxkl` package:
 
 ```{r}
 library(coxkll)
 ```
 
-### Low-Dimensional Integration (coxkl)
-The coxkl function is designed for standard settings where the number of predictors is not substantially larger than the sample size. It integrates external information provided either as coefficient estimates (beta) or as pre-calculated risk scores (RS).
+### Low-Dimensional Integration (`coxkl`)
 
-Let's load some example data. Assume ExampleData contains covariates z, event status status, survival time time, and externally derived coefficients beta_external.
+The `coxkl` function is designed for standard settings where the number of predictors is not substantially larger than the sample size.
+It integrates external information provided either as coefficient estimates (beta) or as pre-calculated risk scores (RS).
 
-```{r, eval=FALSE}
+Let's load some example data.
+Assume ExampleData contains covariates z, event status status, survival time time, and externally derived coefficients beta_external.
+
+```{r}
 # Load example data (Ensure this data is available in your package)
 data("ExampleData")
 z <- ExampleData$z
@@ -65,7 +80,6 @@ length(beta_ext)
 ### Example 1: Integrating external coefficients (`beta`)
 
 We provide the external coefficients via the beta argument and specify a sequence of tuning parameters eta_list.
-
 
 ```{r}
 eta_values <- seq(0, 5, by = 1) # Example sequence for eta
@@ -87,12 +101,15 @@ print(head(fit_beta$LP_list[[3]]))
 print(fit_beta$eta_list)
 ```
 
-When `eta` = 0, coxkl fits a standard Cox model without external information. As `eta` increases, the resulting coefficients are increasingly influenced by the provided `beta_ext`.
+When `eta` = 0, `coxkl` fits a standard Cox model without external information.
+As `eta` increases, the resulting coefficients are increasingly influenced by the provided `beta_ext`.
 
 ### Example 2: Integrating external risk scores (`RS`)
 
-Alternatively, we can provide pre-calculated risk scores. Let's calculate them using the external beta for this example.
-```{r, eval=FALSE}
+Alternatively, we can provide pre-calculated risk scores.
+Let's calculate them using the external beta for this example.
+
+```{r}
 # Calculate Risk Score (ensure matrix operations are correct)
 rs_ext <- as.matrix(z) %*% as.matrix(beta_ext)
 
@@ -106,7 +123,7 @@ fit_rs <- coxkl(z = z,
 print(head(fit_rs$beta_list[[length(eta_values)]]))
 ```
 
-The coxkl function adapts its internal KL divergence calculation based on whether `beta` or `RS` is provided.
+The `coxkl` function adapts its internal KL divergence calculation based on whether `beta` or `RS` is provided.
 
 (Note: You would typically use cross-validation, potentially via `cv.coxkl`, to select the optimal eta value based on prediction performance on held-out data.)
 
@@ -114,7 +131,8 @@ The coxkl function adapts its internal KL divergence calculation based on whethe
 
 For datasets with many predictors ($p > n$), the `coxkl_highdim` function combines KL integration with regularization (Lasso, Ridge, or Elastic Net).
 
-Let's assume `ExampleDataHighDim` provides high-dimensional data (`z`, `status`, `time`). We'll use the previously calculated `rs_ext` as the external information source.
+Let's assume `ExampleDataHighDim` provides high-dimensional data (`z`, `status`, `time`).
+We'll use the previously calculated `rs_ext` as the external information source.
 
 ```{r, eval=FALSE}
 # data("ExampleDataHighDim") # If you have separate high-dim data
@@ -135,4 +153,94 @@ fit_highdim <- coxkl_highdim(z = z_highdim,
                              nlambda = 50) # Number of lambda values for regularization path
 ```
 
+## Real‑World Example: SUPPORT Clinical Data
 
+To illustrate a complete workflow we use the SUPPORT study contained in the survival package.
+We treat the large “external” cohort as historical information and a small “internal” cohort as current data to be augmented.
+
+```{r}
+library(survival)
+library(coxkl)
+
+# Load SUPPORT data and select patients with metastatic cancer
+set.seed(123)
+
+data("support", package = "survival")
+support <- support[support$ca %in% "metastatic", ]
+
+# Create basic covariates
+
+time  <- support$d.time
+status <- support$death
+
+# Diabetes (dummy)
+diabetes <- model.matrix(~ factor(support$diabetes))[ , -1]
+
+# Sex (dummy, female reference)
+sex <- model.matrix(~ support$sex)[ , -1]
+
+# Categorised age
+age_cat <- cut(support$age,
+               breaks = c(-Inf, 50, 60, 70, Inf),
+               labels = c("<50", "50‑59", "60‑69", "70+"),
+               right   = FALSE)
+
+a_mat <- model.matrix(~ age_cat)[ , -1]
+
+# Combine all predictors
+z <- data.frame(a_mat, sex, diabetes)
+colnames(z) <- c("age_<50", "age_50‑59", "age_60‑69", "age_70+", "male", "diabetes")
+
+# Assemble full data frame
+data_all <- data.frame(time = time,
+                       status = status,
+                       z)
+
+# Split into external (historical), internal (current), and test sets
+n  <- nrow(data_all)
+idx <- sample(seq_len(n))
+
+n_ext  <- floor(0.87 * n)
+n_int  <- floor(0.03 * n)
+idx_ext  <- idx[1:n_ext]
+idx_int  <- idx[(n_ext + 1):(n_ext + n_int)]
+idx_test <- idx[-c(1:(n_ext + n_int))]
+
+external_data <- data_all[idx_ext, ]
+internal_data <- data_all[idx_int, ]
+test_data     <- data_all[idx_test, ]
+
+# 1. Fit a Cox model on the external data to obtain coefficients
+ext_cox <- coxph(Surv(time, status) ~ ., data = external_data)
+
+beta_external <- coef(ext_cox)
+
+# 2. Integrate external β into the internal data with varying eta
+eta_seq <- seq(0, 5, by = 1)
+result <- coxkl(z        = internal_data[ , names(beta_external)],
+                delta    = internal_data$status,
+                time     = internal_data$time,
+                beta     = beta_external,
+                eta_list = eta_seq)
+
+# 3. Evaluate log‑partial likelihood on the held‑out test set
+pred <- predict(result,
+                newz  = test_data[ , names(beta_external)],
+                delta = test_data$status,
+                time  = test_data$time)
+```
+
+Use `plot` function to visualize the results:
+
+```{r, fig =TRUE, fig.width=7, fig.height=5}
+
+# Plot improvement across eta values
+plot(pred,
+     main = "Test Set Partial Likelihood vs. KL Weight (eta)",
+     xlab = "eta (weight on external information)",
+     ylab = "Partial log‑likelihood")
+```
+
+The figure shows how incorporating external coefficients with a moderate KL weight ($\eta$) can improve the partial likelihood on unseen data.
+When eta = 0 the model reduces to the standard Cox fit on the tiny internal set; as eta grows the external information dominates.
+The optimal eta balances these sources, typically selected via cross‑validation (`cv.coxkl`).
