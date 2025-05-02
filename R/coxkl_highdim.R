@@ -316,7 +316,7 @@ cvf.surv <- function(i, z, RS, delta, time, K, fold, fold_sub, cv.args) {
   Xlist_temp2 <- z[fold_sub==i, , drop=FALSE]
   
   nl <- length(fit.i$lambda)
-  yhat <- predict.grpsurv_self_multi(fit.i, Xlist_temp2, K)
+  yhat <- predict_grpsurv_self_multi(fit.i, Xlist_temp2, K)
   
   list(nl=length(fit.i$lambda), yhat=yhat)#, loss=loss)
 }
@@ -343,8 +343,8 @@ cvf.survVVH <- function(i, z, RS, delta, time, K, fold, fold_sub, cv.args) {
   Xlist_temp2 <- z[fold_sub==i, , drop=FALSE]
   
   nl        <- length(fit.i$lambda)
-  yhat      <- predict.grpsurv_self_multi(fit.i, Xlist_temp2, K)
-  yhatall   <- predict.grpsurv_self_multi(fit.i, z, K)
+  yhat      <- predict_grpsurv_self_multi(fit.i, Xlist_temp2, K)
+  yhatall   <- predict_grpsurv_self_multi(fit.i, z, K)
   
   list(nl=length(fit.i$lambda), yhat=yhat, yhatall=yhatall)#, loss=loss)
 }

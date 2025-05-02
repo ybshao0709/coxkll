@@ -95,6 +95,7 @@ coxkl <- function(z, delta, time, RS = NULL, beta = NULL, eta_list, tol=1.0e-7, 
   
   beta_list <- list()
   LP_list <- list()
+  likelihood_list <- rep(NA, length(eta_list))
   for (i in seq_along(eta_list)){
     eta <- eta_list[i]
     beta_train <- KL_Cox_Estimate(z_mat, delta_mat, t_train, RS, eta=eta)
@@ -102,13 +103,13 @@ coxkl <- function(z, delta, time, RS = NULL, beta = NULL, eta_list, tol=1.0e-7, 
     
     beta_list[[i]] <- beta_train
     LP_list[[i]] <- LP_train
+    likelihood_list[i] <- pl_cal_theta(LP_train, delta, time)
   }
   
-  results <- list(beta_list = beta_list, LP_list = LP_list, eta_list = eta_list)
+  results <- list(beta_list = beta_list, LP_list = LP_list, eta_list = eta_list, likelihood = likelihood_list)
+  class(results) <- "coxkl"
   return(results)
 }
-
-
 
 # coxkl with sorted data as input
 coxkl_sorted <- function(z, delta, time, RS, eta_list, tol=1.0e-7, Mstop = 50){
@@ -131,5 +132,6 @@ coxkl_sorted <- function(z, delta, time, RS, eta_list, tol=1.0e-7, Mstop = 50){
   }
   
   results <- list(beta_list = beta_list, LP_list = LP_list, eta_list = eta_list)
+  class(results) <- "coxkl"
   return(results)
 }

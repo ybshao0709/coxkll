@@ -1,4 +1,4 @@
-predict.grpsurv_self_multi <- function(object, X, K, 
+predict_grpsurv_self_multi <- function(object, X, K, 
                                         type=c("link", "response", "survival", "median", "norm", 
                                                "coefficients", "vars", "nvars", "groups", "ngroups"),
                                         lambda, which=1:length(object$lambda), ...) {
