@@ -48,7 +48,7 @@
 #' # Corresponding log partial likelihood on the test set
 #' pred$likelihood[which(fit$eta_list == 2)]
 #' @method predict coxkl
-#' @exportS3method
+#' @export
 predict.coxkl <- function(object,
                           newz,
                           delta     = NULL,

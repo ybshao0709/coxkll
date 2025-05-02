@@ -3,6 +3,7 @@
 S3method(cv,coxkl)
 S3method(cv,coxkl_highdim)
 S3method(plot,coxklpred)
+S3method(predict,coxkl)
 export(coxkl)
 export(coxkl_highdim)
 export(loss_fn)
