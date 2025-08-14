@@ -258,6 +258,20 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// cox_custom_obj
+List cox_custom_obj(const arma::vec& theta, const arma::vec& delta, const arma::vec& penalty_weights, double lambda);
+RcppExport SEXP _coxkll_cox_custom_obj(SEXP thetaSEXP, SEXP deltaSEXP, SEXP penalty_weightsSEXP, SEXP lambdaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type delta(deltaSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type penalty_weights(penalty_weightsSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    rcpp_result_gen = Rcpp::wrap(cox_custom_obj(theta, delta, penalty_weights, lambda));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_coxkll_rev_cumsum", (DL_FUNC) &_coxkll_rev_cumsum, 1},
@@ -277,6 +291,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_coxkll_ddloglik_KL_RS_score", (DL_FUNC) &_coxkll_ddloglik_KL_RS_score, 5},
     {"_coxkll_ddloglik_KL_RS", (DL_FUNC) &_coxkll_ddloglik_KL_RS, 5},
     {"_coxkll_KL_Cox_Estimate_cpp", (DL_FUNC) &_coxkll_KL_Cox_Estimate_cpp, 7},
+    {"_coxkll_cox_custom_obj", (DL_FUNC) &_coxkll_cox_custom_obj, 4},
     {NULL, NULL, 0}
 };
 

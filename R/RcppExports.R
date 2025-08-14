@@ -77,3 +77,7 @@ KL_Cox_Estimate_cpp <- function(z, delta, time, RS_internal, eta, tol = 1.0e-7, 
     .Call(`_coxkll_KL_Cox_Estimate_cpp`, z, delta, time, RS_internal, eta, tol, returnBeta)
 }
 
+cox_custom_obj <- function(theta, delta, penalty_weights, lambda) {
+    .Call(`_coxkll_cox_custom_obj`, theta, delta, penalty_weights, lambda)
+}
+

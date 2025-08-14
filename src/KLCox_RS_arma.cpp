@@ -101,6 +101,7 @@ List ddloglik_KL_RS_score(const arma::mat& Z, const arma::vec& delta, arma::vec&
 
 // [[Rcpp::export]]
 List ddloglik_KL_RS(const arma::mat& Z, const arma::vec& delta, arma::vec& beta, const arma::vec& theta_tilde, double &eta) {
+  Rcpp::Rcout << "function started1" << std::endl;
   int p = beta.n_rows;
   int n = delta.n_rows;
   double loglik = 0;
