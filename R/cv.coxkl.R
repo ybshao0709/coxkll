@@ -213,9 +213,9 @@ cv.coxkl <- function(z, delta, time, stratum = NULL,
   
   results <- data.frame(eta = etas)
   if (criteria == "V&VH") {
-    results$VVH_Loss <- result_vec
+    results$VVH_Loss <- -2 * result_vec
   } else if (criteria == "LinPred") {
-    results$LinPred_Loss <- result_vec
+    results$LinPred_Loss <- -2 * result_vec
   } else if (criteria == "CIndex_pooled") {
     results$CIndex_pooled <- result_vec
   } else if (criteria == "CIndex_foldaverage") {

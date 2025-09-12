@@ -74,7 +74,7 @@
 #'   \item{\code{group}}{A \code{factor} of the original group assignments.}
 #'   \item{\code{lambda}}{The lambda value(s) used or generated.}
 #'   \item{\code{alpha}}{The elastic-net mixing parameter used.}
-#'   \item{\code{loss}}{Objective function values along the path.}
+#'   \item{\code{likelihood}}{Vector of log-partial likelihoods for each lambda.}
 #'   \item{\code{n}}{Number of observations.}
 #'   \item{\code{df}}{Effective degrees of freedom (e.g., number of nonzero
 #'     coefficients or group-adjusted count) along the path.}
@@ -275,7 +275,7 @@ coxkl_highdim <- function(z, delta, time, stratum = NULL, RS = NULL, beta = NULL
                            group = factor(initial.group),
                            lambda = lambda,
                            alpha = alpha,
-                           loss = loss,
+                           likelihood = loss,
                            n = n,
                            df = df,
                            iter = iter,

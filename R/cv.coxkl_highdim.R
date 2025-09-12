@@ -223,9 +223,9 @@ cv.coxkl_highdim <- function(z, delta, time, stratum = NULL, RS = NULL, beta = N
   
   results <- data.frame(eta = etas)
   if (cv.eta.criteria == "V&VH") {
-    results$VVH_Loss <- result_vec
+    results$VVH_Loss <- -2 * result_vec
   } else if (cv.eta.criteria == "LinPred") {
-    results$LinPred_Loss <- result_vec
+    results$LinPred_Loss <- -2 * result_vec
   } else if (cv.eta.criteria == "CIndex_pooled") {
     results$CIndex_pooled <- result_vec
   } else if (cv.eta.criteria == "CIndex_foldaverage") {
