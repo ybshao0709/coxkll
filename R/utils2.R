@@ -92,19 +92,6 @@ c_stat_stratcox <- function(time, xbeta, stratum, delta) {
 }
 
 
-c_stat_stratcox_vec <- function(time, LP_mat, stratum, delta) {
-  numer <- denom <- c_stat <- rep(NA_real_, ncol(LP_mat))
-  for (j in seq_len(ncol(LP_mat))) {
-    cs <- c_stat_stratcox(time, LP_mat[, j], stratum, delta)
-    numer[j] <- cs$numer
-    denom[j] <- cs$denom
-    c_stat[j] <- cs$c_statistic
-  }
-  list(numer = numer, denom = denom, c_stat = c_stat)
-}
-
-
-
 #' Setup Lambda Sequence for Cox–KL Model (Internal)
 #'
 #' Generates a sequence of penalty parameters (`lambda`) and initializes coefficients
@@ -462,28 +449,28 @@ predict.coxkl_highdim <- function(fit, X_new = NULL, lambda = NULL, which = 1:le
 
 
 
-# cvf.coxkl_highdim <- function(i, XX, delta, time, stratum, RS, fold, VVH = FALSE, model = c("coxkl_ridge", "coxkl_highdim"), cv.args) {
-#   cv.args$z <- XX[fold != i, , drop = FALSE]
-#   cv.args$delta <- delta[fold!=i]
-#   cv.args$time <- time[fold!=i]
-#   cv.args$stratum <- stratum[fold!=i]
-#   cv.args$RS <- RS[fold!=i]
-#   
-#   invisible(
-#     capture.output(
-#       fit.i <- do.call(model, cv.args)
-#     )
-#   )
-#   nl <- length(fit.i$lambda)
-#   if (VVH){
-#     yhat_train <- predict.coxkl_highdim(fit.i, XX[fold != i, , drop = FALSE], type = "link")
-#     yhat_all <- predict.coxkl_highdim(fit.i, XX, type = "link")
-#     return(list(nl = nl, yhat_train = yhat_train, yhatall = yhat_all))
-#   } else {
-#     yhat_test <- predict.coxkl_highdim(fit.i, XX[fold == i, , drop = FALSE], type = "link")
-#     return(list(nl = nl, yhat_test = yhat_test))
-#   }
-# }
+cvf.coxkl_highdim <- function(i, XX, delta, time, stratum, RS, fold, VVH = FALSE, model = c("coxkl_ridge", "coxkl_highdim"), cv.args) {
+  cv.args$z <- XX[fold != i, , drop = FALSE]
+  cv.args$delta <- delta[fold!=i]
+  cv.args$time <- time[fold!=i]
+  cv.args$stratum <- stratum[fold!=i]
+  cv.args$RS <- RS[fold!=i]
+  
+  invisible(
+    capture.output(
+      fit.i <- do.call(model, cv.args)
+    )
+  )
+  nl <- length(fit.i$lambda)
+  if (VVH){
+    yhat_train <- predict.coxkl_highdim(fit.i, XX[fold != i, , drop = FALSE], type = "link")
+    yhat_all <- predict.coxkl_highdim(fit.i, XX, type = "link")
+    return(list(nl = nl, yhat_train = yhat_train, yhatall = yhat_all))
+  } else {
+    yhat_test <- predict.coxkl_highdim(fit.i, XX[fold == i, , drop = FALSE], type = "link")
+    return(list(nl = nl, yhat_test = yhat_test))
+  }
+}
 
 
 loss.coxkl_highdim <- function(delta, y.hat, stratum, total = TRUE){
@@ -504,180 +491,215 @@ loss.coxkl_highdim <- function(delta, y.hat, stratum, total = TRUE){
 
 
 
-#' #' Cross-Validation for Lambda in coxkl_highdim (Internal Use)
-#' #'
-#' #' This is an internal helper function used within \code{\link{cv.coxkl_highdim}}. 
-#' #' It performs K-fold cross-validation over the penalty parameter \code{lambda} 
-#' #' for the penalized stratified Cox model, given a fixed \code{eta}.
-#' #'
-#' #' @param z Numeric matrix of predictors (rows = samples, cols = variables).
-#' #' @param delta Event indicator vector (1 = event, 0 = censored).
-#' #' @param time Survival time vector.
-#' #' @param stratum Stratum indicator vector.
-#' #' @param RS External risk score matrix, pre-computed or derived from external \code{beta}.
-#' #' @param eta Numeric, tuning parameter for external information weighting.
-#' #' @param alpha Elastic net mixing parameter (1 = lasso, 0 < alpha < 1 = elastic net).
-#' #' @param nfolds Number of cross-validation folds.
-#' #' @param seed Optional random seed for reproducibility.
-#' #' @param cv.lambda.criteria Character, criteria for lambda selection. 
-#' #'   One of \code{"V&VH"} or \code{"LinPred"}.
-#' #' @param trace.cv Logical; if \code{TRUE}, progress of cross-validation is printed.
-#' #' @param ... Additional arguments passed to \code{\link{coxkl_highdim}}.
-#' #'
-#' #' @return A list containing:
-#' #'   \item{cve}{Vector of cross-validation errors for each lambda.}
-#' #'   \item{beta}{Matrix of fitted coefficients for all lambdas.}
-#' #'   \item{lambda.min}{Selected lambda that minimizes CV error.}
-#' #'   \item{best.beta}{Coefficient estimates corresponding to \code{lambda.min}.}
-#' #'
-#' cv.lambda <- function(
-#'     z, delta, time, stratum, RS, eta, alpha, nfolds, seed = NULL, 
-#'     cv.lambda.criteria = "V&VH", trace.cv = FALSE, ...) {
-#'   cv.lambda.criteria <- match.arg(cv.lambda.criteria, choices = c("V&VH", "LinPred"))
-#'   
-#'   fit.args <- list(...)
-#'   fit.args$z <- z
-#'   fit.args$delta <- delta
-#'   fit.args$time <- time
-#'   fit.args$stratum <- stratum
-#'   fit.args$RS <- RS
-#'   fit.args$beta <- NULL
-#'   fit.args$eta <- eta
-#'   fit.args$alpha <- alpha
-#'   fit.args$returnX <- TRUE
-#'   fit.args$data_sorted <- TRUE
-#'   
-#'   invisible(
-#'     capture.output(
-#'       fit <- do.call("coxkl_highdim", fit.args)
-#'     )
-#'   )
-#'   
-#'   XX <- fit$returnX$XX$std.Z
-#'   delta <- fit$returnX$delta
-#'   time <- fit$returnX$time
-#'   stratum <- fit$returnX$stratum
-#'   RS <- fit$returnX$RS
-#'   
-#'   if (!is.null(seed)) {
-#'     set.seed(seed)
-#'   } else {
-#'     set.seed(NULL)
-#'   }
-#'   fold <- get_fold(nfolds = nfolds, delta = delta, stratum = stratum)
-#'   
-#'   cv.args <- list(...)
-#'   cv.args$lambda <- fit$lambda
-#'   cv.args$group <- fit$returnX$XX$g
-#'   cv.args$group.multiplier <- fit$returnX$XX$m
-#'   cv.args$beta <- NULL
-#'   cv.args$alpha <- alpha
-#'   cv.args$eta <- eta
-#'   cv.args$data_sorted <- TRUE
-#'   cv.args$standardize <- FALSE
-#'   
-#'   # Cross-Validation
-#'   Y <- matrix(NA, nrow = length(delta), ncol = length(fit$lambda))
-#'   if (cv.lambda.criteria == "LinPred") {
-#'     for (i in 1:nfolds) {
-#'       if (trace.cv == TRUE){
-#'         cat("Starting CV fold #", i, sep="","...\n")
-#'       }
-#'       res <- cvf.coxkl_highdim(i, XX, delta, time, stratum, RS, fold, VVH = FALSE, model = "coxkl_highdim", cv.args)
-#'       Y[fold == i, 1:res$nl] <- res$yhat_test
-#'     }
-#'     ind <- which(apply(is.finite(Y), 2, all))
-#'     lambda <- fit$lambda[ind]
-#'     L <- loss.coxkl_highdim(delta, Y, stratum, total = FALSE)
-#'     cve <- apply(L, 2, sum)
-#'   } else if (cv.lambda.criteria == "V&VH") {
-#'     cve <- rep(0, length(cv.args$lambda))
-#'     for (i in 1:nfolds) {
-#'       if (trace.cv == TRUE){
-#'         cat("Starting CV fold #", i, sep="","...\n")
-#'       }
-#'       res <- cvf.coxkl_highdim(i, XX, delta, time, stratum, RS, fold, VVH = TRUE, model = "coxkl_highdim", cv.args)
-#'       yhat_train <- res$yhat_train
-#'       yhat_all <- res$yhatall
-#'       L_train <- loss.coxkl_highdim(delta[fold!=i], yhat_train, stratum[fold!=i], total = F)
-#'       L_all <- loss.coxkl_highdim(delta, yhat_all, stratum, total = FALSE)
-#'       cve <- cve + (apply(L_all, 2, sum) - apply(L_train, 2, sum))
-#'     }
-#'   }
-#'   min <- which.min(cve)
-#'   
-#'   best.beta <- fit$beta[, min, drop = FALSE]
-#'   names(cve) <- round(fit$lambda, 4)
-#'   
-#'   return(list(cve = cve,
-#'               beta = fit$beta,
-#'               lambda.min = fit$lambda[min],
-#'               best.beta = best.beta))
-#' }
+#' Cross-Validation for Lambda in coxkl_highdim (Internal Use)
+#'
+#' This is an internal helper function used within \code{\link{cv.coxkl_highdim}}. 
+#' It performs K-fold cross-validation over the penalty parameter \code{lambda} 
+#' for the penalized stratified Cox model, given a fixed \code{eta}.
+#'
+#' @param z Numeric matrix of predictors (rows = samples, cols = variables).
+#' @param delta Event indicator vector (1 = event, 0 = censored).
+#' @param time Survival time vector.
+#' @param stratum Stratum indicator vector.
+#' @param RS External risk score matrix, pre-computed or derived from external \code{beta}.
+#' @param eta Numeric, tuning parameter for external information weighting.
+#' @param alpha Elastic net mixing parameter (1 = lasso, 0 < alpha < 1 = elastic net).
+#' @param nfolds Number of cross-validation folds.
+#' @param seed Optional random seed for reproducibility.
+#' @param cv.lambda.criteria Character, criteria for lambda selection. 
+#'   One of \code{"V&VH"} or \code{"LinPred"}.
+#' @param trace.cv Logical; if \code{TRUE}, progress of cross-validation is printed.
+#' @param ... Additional arguments passed to \code{\link{coxkl_highdim}}.
+#'
+#' @return A list containing:
+#'   \item{cve}{Vector of cross-validation errors for each lambda.}
+#'   \item{beta}{Matrix of fitted coefficients for all lambdas.}
+#'   \item{lambda.min}{Selected lambda that minimizes CV error.}
+#'   \item{best.beta}{Coefficient estimates corresponding to \code{lambda.min}.}
+#'
+cv.lambda <- function(
+    z, delta, time, stratum, RS, eta, alpha, nfolds, seed = NULL, 
+    cv.lambda.criteria = "V&VH", trace.cv = FALSE, ...) {
+  cv.lambda.criteria <- match.arg(cv.lambda.criteria, choices = c("V&VH", "LinPred"))
+  
+  fit.args <- list(...)
+  fit.args$z <- z
+  fit.args$delta <- delta
+  fit.args$time <- time
+  fit.args$stratum <- stratum
+  fit.args$RS <- RS
+  fit.args$beta <- NULL
+  fit.args$eta <- eta
+  fit.args$alpha <- alpha
+  fit.args$returnX <- TRUE
+  fit.args$data_sorted <- TRUE
+  
+  invisible(
+    capture.output(
+      fit <- do.call("coxkl_highdim", fit.args)
+    )
+  )
+  
+  XX <- fit$returnX$XX$std.Z
+  delta <- fit$returnX$delta
+  time <- fit$returnX$time
+  stratum <- fit$returnX$stratum
+  RS <- fit$returnX$RS
+  
+  if (!is.null(seed)) {
+    set.seed(seed)
+  } else {
+    set.seed(NULL)
+  }
+  fold <- get_fold(nfolds = nfolds, delta = delta, stratum = stratum)
+  
+  cv.args <- list(...)
+  cv.args$lambda <- fit$lambda
+  cv.args$group <- fit$returnX$XX$g
+  cv.args$group.multiplier <- fit$returnX$XX$m
+  cv.args$beta <- NULL
+  cv.args$alpha <- alpha
+  cv.args$eta <- eta
+  cv.args$data_sorted <- TRUE
+  cv.args$standardize <- FALSE
+  
+  # Cross-Validation
+  Y <- matrix(NA, nrow = length(delta), ncol = length(fit$lambda))
+  if (cv.lambda.criteria == "LinPred") {
+    for (i in 1:nfolds) {
+      if (trace.cv == TRUE){
+        cat("Starting CV fold #", i, sep="","...\n")
+      }
+      res <- cvf.coxkl_highdim(i, XX, delta, time, stratum, RS, fold, VVH = FALSE, model = "coxkl_highdim", cv.args)
+      Y[fold == i, 1:res$nl] <- res$yhat_test
+    }
+    ind <- which(apply(is.finite(Y), 2, all))
+    lambda <- fit$lambda[ind]
+    L <- loss.coxkl_highdim(delta, Y, stratum, total = FALSE)
+    cve <- apply(L, 2, sum)
+  } else if (cv.lambda.criteria == "V&VH") {
+    cve <- rep(0, length(cv.args$lambda))
+    for (i in 1:nfolds) {
+      if (trace.cv == TRUE){
+        cat("Starting CV fold #", i, sep="","...\n")
+      }
+      res <- cvf.coxkl_highdim(i, XX, delta, time, stratum, RS, fold, VVH = TRUE, model = "coxkl_highdim", cv.args)
+      yhat_train <- res$yhat_train
+      yhat_all <- res$yhatall
+      L_train <- loss.coxkl_highdim(delta[fold!=i], yhat_train, stratum[fold!=i], total = F)
+      L_all <- loss.coxkl_highdim(delta, yhat_all, stratum, total = FALSE)
+      cve <- cve + (apply(L_all, 2, sum) - apply(L_train, 2, sum))
+    }
+  }
+  min <- which.min(cve)
+  
+  best.beta <- fit$beta[, min, drop = FALSE]
+  names(cve) <- round(fit$lambda, 4)
+  
+  return(list(cve = cve,
+              beta = fit$beta,
+              lambda.min = fit$lambda[min],
+              best.beta = best.beta))
+}
 
 
 
 
-#' #' Cross-Validation for Lambda in coxkl_ridge (Internal Use)
-#' #' 
-#' #' Performs K-fold cross-validation over the ridge penalty parameter \code{lambda} 
-#' #' for the penalized stratified Cox model with KL divergence, given a fixed \code{eta}.
-#' #'
-#' #' @param z Numeric matrix of predictors (rows = samples, cols = variables).
-#' #' @param delta Event indicator vector (1 = event, 0 = censored).
-#' #' @param time Survival time vector.
-#' #' @param stratum Stratum indicator vector.
-#' #' @param RS External risk score matrix, pre-computed or derived from external \code{beta}.
-#' #' @param eta Numeric, tuning parameter for external information weighting.
-#' #' @param nfolds Number of cross-validation folds.
-#' #' @param seed Optional random seed for reproducibility.
-#' #' @param cv.lambda.criteria Character, criteria for lambda selection. 
-#' #'   One of \code{"V&VH"} or \code{"LinPred"}.
-#' #' @param trace.cv Logical; if \code{TRUE}, progress of cross-validation is printed.
-#' #' @param ... Additional arguments passed to \code{\link{coxkl_ridge}}.
-#' #'
-#' #' @return A list containing:
-#' #'   \item{cve}{Vector of cross-validation errors for each lambda.}
-#' #'   \item{beta}{Matrix of fitted coefficients for all lambdas.}
-#' #'   \item{lambda.min}{Selected lambda that minimizes CV error.}
-#' #'   \item{best.beta}{Coefficient estimates corresponding to \code{lambda.min}.}
-#' cv.lambda.ridge <- function(
-#'     z, delta, time, stratum, RS, eta,
-#'     lambda = NULL, nlambda = 100, lambda.min.ratio = 1e-3,
-#'     data_sorted = TRUE, ...
-#' ) {
-#'   fit.args <- list(...)
-#'   fit.args$z <- z
-#'   fit.args$delta <- delta
-#'   fit.args$time <- time
-#'   fit.args$stratum <- stratum
-#'   fit.args$RS <- RS
-#'   fit.args$beta <- NULL
-#'   fit.args$eta <- eta
-#'   fit.args$lambda <- lambda
-#'   fit.args$nlambda <- nlambda
-#'   fit.args$lambda.min.ratio <- lambda.min.ratio
-#'   fit.args$data_sorted <- isTRUE(data_sorted)
-#'   fit.args$message <- F
-#'   
-#'   invisible(capture.output(
-#'     fit <- do.call("coxkl_ridge", fit.args)
-#'   ))
-#'   
-#'   return(list(
-#'     lambda = fit$lambda,
-#'     beta = fit$beta,
-#'     linear.predictors = fit$linear.predictors,
-#'     likelihood = fit$likelihood
-#'   ))
-#' }
-
-
-
-
-
-
-
-
-
+#' Cross-Validation for Lambda in coxkl_ridge (Internal Use)
+#' 
+#' Performs K-fold cross-validation over the ridge penalty parameter \code{lambda} 
+#' for the penalized stratified Cox model with KL divergence, given a fixed \code{eta}.
+#'
+#' @param z Numeric matrix of predictors (rows = samples, cols = variables).
+#' @param delta Event indicator vector (1 = event, 0 = censored).
+#' @param time Survival time vector.
+#' @param stratum Stratum indicator vector.
+#' @param RS External risk score matrix, pre-computed or derived from external \code{beta}.
+#' @param eta Numeric, tuning parameter for external information weighting.
+#' @param nfolds Number of cross-validation folds.
+#' @param seed Optional random seed for reproducibility.
+#' @param cv.lambda.criteria Character, criteria for lambda selection. 
+#'   One of \code{"V&VH"} or \code{"LinPred"}.
+#' @param trace.cv Logical; if \code{TRUE}, progress of cross-validation is printed.
+#' @param ... Additional arguments passed to \code{\link{coxkl_ridge}}.
+#'
+#' @return A list containing:
+#'   \item{cve}{Vector of cross-validation errors for each lambda.}
+#'   \item{beta}{Matrix of fitted coefficients for all lambdas.}
+#'   \item{lambda.min}{Selected lambda that minimizes CV error.}
+#'   \item{best.beta}{Coefficient estimates corresponding to \code{lambda.min}.}
+cv.lambda.ridge <- function(
+    z, delta, time, stratum, RS, eta, nfolds, seed = NULL, 
+    cv.lambda.criteria = "V&VH", trace.cv = FALSE, ...) {
+  
+  cv.lambda.criteria <- match.arg(cv.lambda.criteria, choices = c("V&VH", "LinPred"))
+  
+  fit.args <- list(...)
+  fit.args$z <- z
+  fit.args$delta <- delta
+  fit.args$time <- time
+  fit.args$stratum <- stratum
+  fit.args$RS <- RS
+  fit.args$beta <- NULL
+  fit.args$eta <- eta
+  fit.args$data_sorted <- TRUE
+  
+  
+  invisible(
+    capture.output(
+      fit <- do.call("coxkl_ridge", fit.args)
+    )
+  )
+  
+  if (!is.null(seed)) {
+    set.seed(seed)
+  } else {
+    set.seed(NULL)
+  }
+  fold <- get_fold(nfolds = nfolds, delta = delta, stratum = stratum)
+  
+  cv.args <- list(...)
+  cv.args$lambda <- fit$lambda
+  cv.args$beta <- NULL
+  cv.args$eta <- eta
+  cv.args$data_sorted <- TRUE
+  
+  # Cross-Validation
+  Y <- matrix(NA, nrow = length(delta), ncol = length(fit$lambda))
+  if (cv.lambda.criteria == "LinPred") {
+    for (i in 1:nfolds) {
+      if (trace.cv == TRUE){
+        cat("Starting CV fold #", i, sep="","...\n")
+      }
+      res <- cvf.coxkl_highdim(i, z, delta, time, stratum, RS, fold, VVH = FALSE, model = "coxkl_ridge", cv.args)
+      Y[fold == i, 1:res$nl] <- res$yhat_test
+    }
+    ind <- which(apply(is.finite(Y), 2, all))
+    lambda <- fit$lambda[ind]
+    L <- loss.coxkl_highdim(delta, Y, stratum, total = FALSE)
+    cve <- apply(L, 2, sum)
+  } else if (cv.lambda.criteria == "V&VH") {
+    cve <- rep(0, length(cv.args$lambda))
+    for (i in 1:nfolds) {
+      if (trace.cv == TRUE){
+        cat("Starting CV fold #", i, sep="","...\n")
+      }
+      res <- cvf.coxkl_highdim(i, z, delta, time, stratum, RS, fold, VVH = TRUE, model = "coxkl_ridge", cv.args)
+      yhat_train <- res$yhat_train
+      yhat_all <- res$yhatall
+      L_train <- loss.coxkl_highdim(delta[fold!=i], yhat_train, stratum[fold!=i], total = F)
+      L_all <- loss.coxkl_highdim(delta, yhat_all, stratum, total = FALSE)
+      cve <- cve + (apply(L_all, 2, sum) - apply(L_train, 2, sum))
+    }
+  }
+  min <- which.min(cve)
+  
+  best.beta <- fit$beta[, min, drop = FALSE]
+  names(cve) <- round(fit$lambda, 4)
+  
+  return(list(cve = cve,
+              beta = fit$beta,
+              lambda.min = fit$lambda[min],
+              best.beta = best.beta))
+}
 

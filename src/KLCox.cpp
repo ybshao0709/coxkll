@@ -223,15 +223,14 @@ arma::vec KL_Cox_Estimate_cpp(const arma::mat& Z,
                               const arma::vec& delta_tilde,
                               const arma::vec& n_each_stratum,
                               const double eta,
+                              arma::vec beta_initial, 
                               const double tol = 1.0e-7,
                               const int maxit = 50,
                               const double lambda = 0.0,
                               bool backtrack = false, 
                               bool message = false){
-
-  const arma::uword p = Z.n_cols;
-  arma::vec beta = arma::zeros<arma::vec>(p);
-
+  arma::vec beta = beta_initial;
+  
   const arma::uword S = n_each_stratum.n_elem;
   arma::uvec ind_start(S); 
   ind_start(0) = 0;
@@ -240,7 +239,7 @@ arma::vec KL_Cox_Estimate_cpp(const arma::mat& Z,
   }
 
   for (int iter = 0; iter < maxit; ++iter) {
-    arma::vec d_beta = BetaUpdate(Z, delta, delta_tilde, beta, eta, ind_start, n_each_stratum, lambda,  backtrack);
+    arma::vec d_beta = BetaUpdate(Z, delta, delta_tilde, beta, eta, ind_start, n_each_stratum, lambda, backtrack);
     beta += d_beta;
 
     if (arma::max(arma::abs(d_beta)) < tol) {

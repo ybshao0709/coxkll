@@ -16,7 +16,6 @@
 #' @param lambda Optional numeric scalar or vector of penalty parameters. If `NULL`, a sequence is generated automatically.
 #' @param nlambda Number of lambda values to generate if `lambda` is `NULL`.
 #' @param lambda.min.ratio Ratio defining the minimum lambda relative to `lambda.max`.
-#' @param lambda.early.stop Logical; whether to stop early when coefficients reach zero (not currently used).
 #' @param penalty.factor Numeric scalar in `[0, 1)` .Controls the overall strength of the penalty when generating the ridge 
 #'   regression lambda sequence. Smaller values correspond to stronger penalization. Only used when `lambda = NULL`.
 #' @param tol Convergence tolerance for the iterative estimation algorithm.
@@ -35,11 +34,10 @@
 #' }
 #'
 #' @export
-
-
 coxkl_ridge <- function(z, delta, time, stratum = NULL, RS = NULL, beta = NULL, eta = NULL,
-                        lambda = NULL, nlambda = 100, lambda.min.ratio = 1e-3, lambda.early.stop = FALSE, penalty.factor = 0.999,
-                        tol = 1.0e-4, Mstop = 50, backtrack = FALSE, message = FALSE, data_sorted = FALSE, ...){
+                        lambda = NULL, nlambda = 100, lambda.min.ratio = 1e-3, penalty.factor = 0.999,
+                        tol = 1.0e-4, Mstop = 50, backtrack = FALSE, message = FALSE, data_sorted = FALSE,
+                        beta_initial = NULL, ...){
   if (is.null(eta)){
     warning("eta is not provided. Setting eta = 0 (no external information used).", call. = FALSE)
     eta <- 0
@@ -116,19 +114,27 @@ coxkl_ridge <- function(z, delta, time, stratum = NULL, RS = NULL, beta = NULL, 
   colnames(beta_mat) <- lambda_names
   names(likelihood_mat) <- lambda_names
   
+
+  
+  if (is.null(beta_initial)){
+    beta_initial <- rep(0, ncol(z_mat))
+  }
+  
   if (message) {
     cat("Cross-validation over lambda sequence:\n")
-    pb <- txtProgressBar(min = 0, max = nlambda, style = 3, width = 30)  # width 控制bar长度
+    pb <- txtProgressBar(min = 0, max = nlambda, style = 3, width = 30)
   }
+  
   for (i in seq_along(lambda.seq)) {
     lambda <- lambda.seq[i]
-    beta_train <- KL_Cox_Estimate_cpp(z_mat, delta, delta_tilde, n.each_stratum, eta, 
-                                      tol, Mstop, lambda = lambda, 
-                                      backtrack = backtrack, message = FALSE)
-    LP_train <- z_mat %*% as.matrix(beta_train)
-    beta_mat[, i] <- beta_train
+    beta_est <- KL_Cox_Estimate_cpp(z_mat, delta, delta_tilde, n.each_stratum, eta, beta_initial,
+                                    tol, Mstop, lambda = lambda, backtrack = backtrack, message = FALSE)
+    LP_train <- z_mat %*% as.matrix(beta_est)
+    beta_mat[, i] <- beta_est
     LP_mat[, i] <- LP_train
     likelihood_mat[i] <- pl_cal_theta(LP_train, delta, n.each_stratum)
+    
+    beta_initial <- beta_est  # "warm start"
     if (message) setTxtProgressBar(pb, i)
   }
   if (message) close(pb)

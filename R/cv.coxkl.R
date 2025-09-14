@@ -57,22 +57,22 @@
 #'                     nfolds = 5, criteria = "CIndex_pooled")
 #'
 #' @export
-
 cv.coxkl <- function(z, delta, time, stratum = NULL,
                      RS = NULL, beta = NULL,
                      etas = NULL,
                      tol = 1.0e-4, Mstop = 100,
                      backtrack = FALSE,
                      nfolds = 5,
-                     criteria = "V&VH",
+                     criteria = c("V&VH", "LinPred", "CIndex_pooled", "CIndex_foldaverage"),
                      c_index_stratum = NULL,
                      message = FALSE,
-                     seed = NULL,...) {
+                     seed = NULL, ...) {
+  
   criteria <- match.arg(criteria, choices = c("V&VH", "LinPred", "CIndex_pooled", "CIndex_foldaverage"))
   
-  if (is.null(etas)){
-    stop("etas must be provided.", call. = FALSE)
-  }
+  ## Check and prepare external risk score
+  if (is.null(etas)) stop("etas must be provided.", call. = FALSE)
+  etas <- sort(etas)
   
   if (is.null(RS) && is.null(beta)) {
     stop("No external information is provided. Either RS or beta must be provided.")
@@ -83,14 +83,14 @@ cv.coxkl <- function(z, delta, time, stratum = NULL,
     } else {
       stop("The dimension of beta does not match the number of columns in z.")
     }
-  } else if (!is.null(RS)) {
+  } else {
     RS <- as.matrix(RS)
     if (message) message("External Risk Score information is used.")
   }
   
+  ## Process stratum
   if (is.null(stratum)) {
-    warning("Stratum information not provided. All data is assumed to originate from a single stratum!", 
-            call. = FALSE)
+    warning("Stratum not provided. Treating all data as one stratum.", call. = FALSE)
     stratum <- rep(1, nrow(z))
   } else {
     if (!is.null(c_index_stratum) & !identical(stratum, c_index_stratum)) {
@@ -99,7 +99,7 @@ cv.coxkl <- function(z, delta, time, stratum = NULL,
     stratum <- match(stratum, unique(stratum))
   }
   
-  # data is sorted for all & train & test data
+  ## Sort data by stratum and time
   time_order <- order(stratum, time)
   time <- as.numeric(time[time_order])
   stratum <- as.numeric(stratum[time_order])
@@ -107,52 +107,97 @@ cv.coxkl <- function(z, delta, time, stratum = NULL,
   delta <- as.numeric(delta[time_order])
   RS <- RS[time_order, , drop = FALSE]
   
-  
   n <- nrow(z)
   n_eta <- length(etas)
-  result_vec <- numeric(n_eta)
   
-  for (eta_index in seq_along(etas)){
-    eta <- etas[eta_index]
-    if (message) message(sprintf("(%d/%d) eta = %g starts...", eta_index, n_eta, round(eta, 5)))
+  ## Precompute counts per stratum for full data (used by VVH / LinPred external)
+  n.each_stratum_full <- as.numeric(table(stratum))
+  
+  ## Fix seed for reproducibility and create folds
+  if (!is.null(seed)) set.seed(seed)
+  folds <- get_fold(nfolds = nfolds, delta = delta, stratum = stratum)
+  
+  ## Storage for internal CV results
+  result_mat <- matrix(NA_real_, nrow = nfolds, ncol = n_eta)
+  if (criteria == "LinPred") {
+    cv_all_linpred <- matrix(NA, nrow = n, ncol = n_eta)
+  } else if (criteria == "CIndex_pooled") {
+    cv_pooled_cindex_array <- array(0, dim = c(nfolds, n_eta, 2))  # [fold, eta, numer/denom]
+  }
+  
+  ## Storage for external baseline, matched to each criteria
+  if (criteria == "V&VH") {
+    # For VVH we need fold-wise: pl_full(RS) - pl_train(RS)
+    pl_full_RS <- pl_cal_theta(as.vector(RS), delta, n.each_stratum_full)
+    ext_vvh_per_fold <- numeric(nfolds)
+  } else if (criteria == "LinPred") {
+    # For LinPred the assembled CV linear predictor equals RS itself
+    # external_stat will be computed once at the end (no need for folds)
+    # placeholder not needed
+    NULL
+  } else if (criteria == "CIndex_pooled") {
+    ext_numer <- numeric(nfolds)
+    ext_denom <- numeric(nfolds)
+  } else if (criteria == "CIndex_foldaverage") {
+    ext_c_per_fold <- numeric(nfolds)
+  }
+  
+  ## Outer loop over folds
+  for (f in seq_len(nfolds)) {
+    if (message) message(sprintf("CV fold %d/%d starts...", f, nfolds))
     
+    train_idx <- which(folds != f)
+    test_idx  <- which(folds == f)
     
+    z_train <- z[train_idx, , drop = FALSE]
+    delta_train <- delta[train_idx]
+    time_train <- time[train_idx]
+    stratum_train <- stratum[train_idx]
+    RS_train <- RS[train_idx, , drop = FALSE]
+    
+    beta_initial <- rep(0, ncol(z))  # warm start for each fold
+    
+    ## ----- External baseline per fold, matched to criteria -----
     if (criteria == "V&VH") {
-      cv_vvh <- numeric(nfolds)
-    } else if (criteria == "LinPred") {
-      cv_all_linpred <- matrix(NA, nrow = length(delta), ncol = 1)
+      # VVH external for this fold: pl_full(RS) - pl_train(RS)
+      n.each_stratum_train <- as.numeric(table(stratum_train))
+      pl_train_RS <- pl_cal_theta(as.vector(RS_train), delta_train, n.each_stratum_train)
+      ext_vvh_per_fold[f] <- pl_full_RS - pl_train_RS
     } else if (criteria == "CIndex_pooled") {
-      cv_pooled_cindex_mat <- matrix(0, nfolds, 2)
+      # pooled: sum numer/denom over test folds
+      if (is.null(c_index_stratum)) {
+        stratum_test <- stratum[test_idx]
+      } else {
+        stratum_test <- c_index_stratum[test_idx]
+      }
+      cstat_ext <- c_stat_stratcox(time[test_idx],
+                                   as.vector(RS[test_idx]),
+                                   stratum_test,
+                                   delta[test_idx])
+      ext_numer[f] <- cstat_ext$numer
+      ext_denom[f] <- cstat_ext$denom
     } else if (criteria == "CIndex_foldaverage") {
-      cv_cindex <- numeric(nfolds)
+      if (is.null(c_index_stratum)) {
+        stratum_test <- stratum[test_idx]
+      } else {
+        stratum_test <- c_index_stratum[test_idx]
+      }
+      cstat_ext <- c_stat_stratcox(time[test_idx],
+                                   as.vector(RS[test_idx]),
+                                   stratum_test,
+                                   delta[test_idx])
+      ext_c_per_fold[f] <- cstat_ext$c_statistic
     }
     
-    if (!is.null(seed)) {
-      set.seed(seed)
-    } else {
-      set.seed(NULL)
+    ## ----- Cross-validation over eta sequence (internal model) -----
+    if (message) {
+      cat("Cross-validation over eta sequence:\n")
+      pb <- txtProgressBar(min = 0, max = n_eta, style = 3, width = 30)
     }
     
-    if (!is.null(c_index_stratum)){
-      folds <- get_fold(nfolds = nfolds, delta, c_index_stratum) #always use stratum information for train-test spliting
-    } else {
-      folds <- get_fold(nfolds = nfolds, delta, stratum)
-    }
-    
-    for (f in seq_len(nfolds)) {
-      if (message) message(sprintf("  CV %d/%d", f, nfolds))
+    for (i in seq_along(etas)) {
+      eta <- etas[i]
       
-      train_idx <- which(folds != f)
-      test_idx  <- which(folds == f)
-      
-      # Training data
-      z_train <- z[train_idx, , drop = FALSE]
-      delta_train <- delta[train_idx]
-      time_train <- time[train_idx]
-      stratum_train <- stratum[train_idx]
-      RS_train <- RS[train_idx, , drop = FALSE]
-      
-      # Fit model on training data
       cox_estimate <- coxkl(z = z_train,
                             delta = delta_train,
                             time = time_train,
@@ -162,55 +207,65 @@ cv.coxkl <- function(z, delta, time, stratum = NULL,
                             tol = tol,
                             Mstop = Mstop,
                             backtrack = backtrack,
-                            message = FALSE, 
-                            data_sorted = TRUE)
+                            message = FALSE,
+                            data_sorted = TRUE,
+                            beta_initial = beta_initial)
       
-      beta_train <- cox_estimate$beta  #cv needs beta-hat
+      beta_train <- cox_estimate$beta
+      beta_initial <- beta_train  # warm start
+      
+      z_test <- z[test_idx, , drop = FALSE]
+      delta_test <- delta[test_idx]
+      time_test <- time[test_idx]
+      LP_test <- as.matrix(z_test) %*% as.matrix(beta_train)
       
       if (criteria == "V&VH") {
         LP_train <- as.matrix(z_train) %*% as.matrix(beta_train)
         LP_internal <- as.matrix(z) %*% as.matrix(beta_train)
-        
         n.each_stratum_train <- as.numeric(table(stratum_train))
-        n.each_stratum_internal <- as.numeric(table(stratum))
+        n.each_stratum_full  <- n.each_stratum_full  # already computed
         
-        cv_vvh[f] <- pl_cal_theta(LP_internal, delta, n.each_stratum_internal) - 
-          pl_cal_theta(LP_train, delta_train, n.each_stratum_train)
+        result_mat[f, i] <-
+          pl_cal_theta(LP_internal, delta, n.each_stratum_full) -
+          pl_cal_theta(LP_train,    delta_train, n.each_stratum_train)
+        
+      } else if (criteria == "LinPred") {
+        cv_all_linpred[test_idx, i] <- LP_test
+        
       } else {
-        z_test <- z[test_idx, , drop = FALSE]
-        delta_test <- delta[test_idx]
-        time_test <- time[test_idx]
-        LP_test <- as.matrix(z_test) %*% as.matrix(beta_train)
-        if (criteria == "LinPred") {
-          cv_all_linpred[test_idx,] <- LP_test
-        } else { #C-Index
-          if (is.null(c_index_stratum)){
-            stratum_test <- stratum[test_idx]
-          } else {
-            stratum_test <- c_index_stratum[test_idx]
-          }
-          if (criteria == "CIndex_pooled") {
-            cstat <- c_stat_stratcox(time_test, LP_test, stratum_test, delta_test)
-            cv_pooled_cindex_mat[f,] <- c(cstat$numer, cstat$denom)
-          } else if (criteria == "CIndex_foldaverage") {
-            cstat <- c_stat_stratcox(time_test, LP_test, stratum_test, delta_test)$c_statistic
-            cv_cindex[f] <- cstat
-          }
+        if (is.null(c_index_stratum)) {
+          stratum_test <- stratum[test_idx]
+        } else {
+          stratum_test <- c_index_stratum[test_idx]
+        }
+        if (criteria == "CIndex_pooled") {
+          cstat <- c_stat_stratcox(time_test, LP_test, stratum_test, delta_test)
+          cv_pooled_cindex_array[f, i, ] <- c(cstat$numer, cstat$denom)
+        } else if (criteria == "CIndex_foldaverage") {
+          cstat <- c_stat_stratcox(time_test, LP_test, stratum_test, delta_test)$c_statistic
+          result_mat[f, i] <- cstat
         }
       }
+      if (message) setTxtProgressBar(pb, i)
     }
-    
-    if (criteria == "V&VH"){
-      result_vec[eta_index] <- sum(cv_vvh)
-    } else if (criteria == "LinPred"){
-      result_vec[eta_index] <- pl_cal_theta(cv_all_linpred, delta, as.numeric(table(stratum)))
-    } else if (criteria == "CIndex_foldaverage") {
-      result_vec[eta_index] <- mean(cv_cindex)
-    } else if (criteria == "CIndex_pooled"){
-      result_vec[eta_index] <- sum(cv_pooled_cindex_mat[, 1], na.rm = TRUE) / sum(cv_pooled_cindex_mat[, 2], na.rm = TRUE)
-    }
+    if (message) close(pb)
   }
   
+  ## Combine CV results across folds (internal model)
+  if (criteria == "V&VH") {
+    result_vec <- colSums(result_mat, na.rm = TRUE)
+  } else if (criteria == "LinPred") {
+    result_vec <- apply(cv_all_linpred, 2,
+                        function(lp) pl_cal_theta(lp, delta, as.numeric(table(stratum))))
+  } else if (criteria == "CIndex_foldaverage") {
+    result_vec <- colMeans(result_mat, na.rm = TRUE)
+  } else if (criteria == "CIndex_pooled") {
+    numer <- apply(cv_pooled_cindex_array[,,1], 2, sum, na.rm = TRUE)
+    denom <- apply(cv_pooled_cindex_array[,,2], 2, sum, na.rm = TRUE)
+    result_vec <- numer / denom
+  }
+  
+  ## Assemble internal results by eta
   results <- data.frame(eta = etas)
   if (criteria == "V&VH") {
     results$VVH_Loss <- -2 * result_vec
@@ -221,5 +276,17 @@ cv.coxkl <- function(z, delta, time, stratum = NULL,
   } else if (criteria == "CIndex_foldaverage") {
     results$CIndex_foldaverage <- result_vec
   }
-  return(results)
+  
+  ## External baseline matched to criteria
+  external_stat <- switch(criteria,
+                          "V&VH" = -2 * sum(ext_vvh_per_fold),
+                          "LinPred" = -2 * pl_cal_theta(as.vector(RS), delta, n.each_stratum_full),
+                          "CIndex_pooled" = sum(ext_numer) / sum(ext_denom),
+                          "CIndex_foldaverage" = mean(ext_c_per_fold)
+  )
+
+  return(list(
+    internal_stat = results,
+    external_stat = external_stat
+  ))
 }

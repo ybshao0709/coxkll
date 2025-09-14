@@ -66,7 +66,8 @@ result_new <- coxkl(z = ExampleData$z,
                     time = ExampleData$time,
                     RS = NULL,
                     beta = ExampleData$beta_external,
-                    etas = seq(0, 5, 1))
+                    etas = seq(0, 5, 1),
+                    message = T)
 
 
 head(result_new$beta)  # the result is the same with that form Lingfeng's original code
@@ -84,6 +85,7 @@ head(result_new$beta)  # the result is the same with that form Lingfeng's origin
 load("data/ExampleData.RData")
 
 etas <- generate_eta(method = "exponential", n = 10, max_eta = 5)
+etas <- sample(etas) ## suffle eta orders
 cv_res1 <- cv.coxkl(z = ExampleData$z,
                     delta = ExampleData$status,
                     time = ExampleData$time,
@@ -92,21 +94,28 @@ cv_res1 <- cv.coxkl(z = ExampleData$z,
                     beta = ExampleData$beta_external,
                     etas = etas,
                     nfolds = 5,
-                    criteria = c("V&VH"),
-                    # criteria = c("V&VH", "LinPred", "CIndex_pooled", "CIndex_foldaverage"),
-                    message = F)
+                    criteria = c("LinPred"),   #"V&VH", "LinPred", "CIndex_pooled", "CIndex_foldaverage"
+                    message = T)
 cv_res1
-#         eta  VVH_Loss
-# 1  0.00000000 -2067.738
-# 2  0.03374245 -2066.098
-# 3  0.09002825 -2073.831
-# 4  0.18391863 -2070.157
-# 5  0.34053721 -2071.9793we2
-# 6  0.60179276 -2066.785
-# 7  1.03759328 -2065.022
-# 8  1.76455236 -2064.752
-# 9  2.97719318 -2064.582
-# 10 5.00000000 -2066.030
+# $internal_stat
+#           eta LinPred_Loss
+# 1  0.00000000     2086.045
+# 2  0.03374245     2077.520
+# 3  0.09002825     2065.255
+# 4  0.18391863     2049.000
+# 5  0.34053721     2029.814
+# 6  0.60179276     2010.365
+# 7  1.03759328     1993.975
+# 8  1.76455236     1982.737
+# 9  2.97719318     1976.535
+# 10 5.00000000     1973.824
+# 
+# $external_stat
+# [1] 1973.572
+
+plot(cv_res1$internal_stat[,1], cv_res1$internal_stat[,2], type = "b", xlab = "eta")
+
+
 
 #---------------------------4. ridge (coxkl_ridge)------------------------------#
 load("data/ExampleDataHighDim.RData")
@@ -131,25 +140,36 @@ head(result3$beta[, 1:5])
 
 
 #---------------------------5. cv.coxkl_ridge ------------------------------#
+set.seed(1)
+etas <- generate_eta(method = "exponential", n = 10, max_eta = 5)
+etas <- sample(etas) ## suffle eta orders
 cv.result3 <- cv.coxkl_ridge(z = ExampleData$z,
                              delta = ExampleData$status,
                              time = ExampleData$time,
                              stratum = NULL,
                              RS = NULL,
                              beta = ExampleData$beta_external,
-                             etas = seq(0, 5, 1),
+                             etas = etas,
                              nfolds = 5, 
-                             cv.eta.criteria = "V&VH", 
-                             cv.lambda.criteria = "V&VH",
+                             cv.criteria = "CIndex_pooled",
                              message = T)
-cv.result3
-#   eta  VVH_Loss
-# 1   0 -1181.542
-# 2   1 -1167.634
-# 3   2 -1169.899
-# 4   3 -1166.570
-# 5   4 -1162.638
-# 6   5 -1163.420
+cv.result3$external_stat.best_per_eta
+#           eta    lambda CIndex_pooled
+# 1  0.00000000 64.143778     0.7174664
+# 2  0.03374245 52.106135     0.7191440
+# 3  0.09002825 52.224183     0.7204656
+# 4  0.18391863 49.408333     0.7223465
+# 5  0.34053721 27.022552     0.7260573
+# 6  0.60179276  7.926052     0.7296157
+# 7  1.03759328 10.082701     0.7330216
+# 8  1.76455236 11.133753     0.7353599
+# 9  2.97719318  2.826165     0.7371899
+# 10 5.00000000  5.030473     0.7359699
+
+cv.result3$external_stat
+# [1] 0.7345466
+
+plot(cv.result3$best_per_eta[,1], cv.result3$best_per_eta[,3], type = "b", xlab = "eta")
 
 #---------------------------6.coxkl_highdim------------------------------#
 load("data/ExampleDataHighDim.RData")
@@ -163,30 +183,37 @@ result4 <- coxkl_highdim(z = ExampleData$z,
                          alpha = 1.0,
                          message = T)
 
+
 #---------------------------7. cv.coxkl_highdim ------------------------------#
+set.seed(1)
+etas <- generate_eta(method = "exponential", n = 10, max_eta = 5)
+etas <- sample(etas)
 result5 <- cv.coxkl_highdim(z = ExampleData$z,
                             delta = ExampleData$status,
                             time = ExampleData$time,
                             stratum = NULL,
                             RS = NULL,
                             beta = ExampleData$beta_external,
-                            etas = seq(0, 5, 1),
+                            etas = etas,
                             alpha = 1.0,
                             nfolds = 5, 
-                            cv.eta.criteria = "V&VH",
-                            cv.lambda.criteria = "V&VH",
+                            cv.criteria = "V&VH",
                             message = T)
-# > result5
-#   eta  VVH_Loss
-# 1   0 -1172.989
-# 2   1 -1167.563
-# 3   2 -1164.809
-# 4   3 -1164.275
-# 5   4 -1164.608
-# 6   5 -1164.935
+result5$best_per_eta
+#           eta      lambda     Loss
+# 1  0.00000000 0.028426151 2350.817
+# 2  0.03374245 0.026549628 2349.435
+# 3  0.09002825 0.024816367 2347.365
+# 4  0.18391863 0.020393447 2344.343
+# 5  0.34053721 0.016952548 2340.283
+# 6  0.60179276 0.017459028 2336.117
+# 7  1.03759328 0.014612411 2332.514
+# 8  1.76455236 0.009900687 2329.408
+# 9  2.97719318 0.007674849 2327.024
+# 10 5.00000000 0.005514951 2325.576
 
-
-
+result5$external_stat
+# 2325.419
 
 
 

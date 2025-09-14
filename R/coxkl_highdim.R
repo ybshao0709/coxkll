@@ -98,8 +98,6 @@
 #'
 #'
 #' @export
-
-
 coxkl_highdim <- function(z, delta, time, stratum = NULL, RS = NULL, beta = NULL, eta = NULL,
                           alpha = NULL, lambda = NULL, nlambda = 100, lambda.min.ratio = 1e-3, lambda.early.stop = FALSE,
                           tol = 1.0e-4, Mstop = 1000, max.total.iter = (Mstop * nlambda), 

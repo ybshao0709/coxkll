@@ -80,7 +80,8 @@ coxkl <- function(z, delta, time, stratum = NULL,
                   etas, tol = 1.0e-4, Mstop = 100,
                   backtrack = FALSE,
                   message = FALSE,
-                  data_sorted = FALSE) {
+                  data_sorted = FALSE,
+                  beta_initial = NULL){
   
   if (is.null(RS) && is.null(beta)) {
     stop("No external information is provided. Either RS or beta must be provided.")
@@ -118,6 +119,7 @@ coxkl <- function(z, delta, time, stratum = NULL,
     RS <- as.numeric(RS)
   }
   
+  etas <- sort(etas)
   n_eta <- length(etas)
   LP_mat <- matrix(NA, nrow = nrow(z_mat), ncol = n_eta)
   beta_mat <- matrix(NA, nrow = ncol(z_mat), ncol = n_eta)
@@ -131,17 +133,28 @@ coxkl <- function(z, delta, time, stratum = NULL,
   n.each_stratum <- as.numeric(table(stratum))
   delta_tilde <- calculateDeltaTilde(delta, time, RS, n.each_stratum)
   
-  for (i in seq_along(etas)){
-    eta <- etas[i]
-    if (message) message("Fitting model for eta = ", eta)
-    
-    beta_train <- KL_Cox_Estimate_cpp(z_mat, delta, delta_tilde, n.each_stratum, eta, tol, Mstop,
-                                      lambda = 0, backtrack = backtrack, message = message)
-    LP <- z_mat %*% as.matrix(beta_train)
-    LP_mat[, i] <- LP
-    beta_mat[, i] <- beta_train
-    likelihood_mat[i] <- pl_cal_theta(LP, delta, n.each_stratum)
+  if (is.null(beta_initial)){
+    beta_initial <- rep(0, ncol(z_mat))
   }
+  
+  if (message) {
+    cat("Cross-validation over eta sequence:\n")
+    pb <- txtProgressBar(min = 0, max = n_eta, style = 3, width = 30)
+  }
+  
+  for (i in seq_along(etas)){  #"etas" already in ascending order
+    eta <- etas[i]
+    beta_est <- KL_Cox_Estimate_cpp(z_mat, delta, delta_tilde, n.each_stratum, eta, beta_initial,
+                                    tol, Mstop, lambda = 0, backtrack = backtrack, message = F)
+    LP <- z_mat %*% as.matrix(beta_est)
+    LP_mat[, i] <- LP
+    beta_mat[, i] <- beta_est
+    likelihood_mat[i] <- pl_cal_theta(LP, delta, n.each_stratum)
+    
+    beta_initial <- beta_est  # "warm start"
+    if (message) setTxtProgressBar(pb, i)
+  }
+  if (message) close(pb)
   
   if (data_sorted == FALSE){
     LinPred_original <- matrix(NA_real_, nrow = length(time_order), ncol = n_eta)
